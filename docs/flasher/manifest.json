@@ -1,0 +1,35 @@
+{
+  "name": "PaxxTouch",
+  "description": "Custom firmware for BTT K-Touch / PandaTouch — Snapmaker U1 + Paxx Extended Firmware",
+  "chip": "ESP32-S3",
+  "hardware": "BTT K-Touch / PandaTouch (ESP32-S3, 16 MB flash, 8 MB PSRAM)",
+  "github": {
+    "owner": "TechJeeper",
+    "repo": "PaxxTouch"
+  },
+  "flash": {
+    "mode": "qio",
+    "freq": "80m",
+    "size": "16MB"
+  },
+  "baudRate": 460800,
+  "files": [
+    { "asset": "paxxtouch-bootloader.bin", "offset": 0 },
+    { "asset": "paxxtouch-partitions.bin", "offset": 32768 },
+    { "asset": "paxxtouch-boot_app0.bin", "offset": 57344, "optional": true },
+    { "asset": "paxxtouch-firmware.bin", "offset": 65536 }
+  ],
+  "localFallback": {
+    "bootloader.bin": 0,
+    "partitions.bin": 32768,
+    "boot_app0.bin": 57344,
+    "firmware.bin": 65536
+  },
+  "usbFilters": [
+    { "usbVendorId": 6790 },
+    { "usbVendorId": 12346 },
+    { "usbVendorId": 4292 },
+    { "usbVendorId": 1027 },
+    { "usbVendorId": 1659 }
+  ]
+}

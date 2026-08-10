@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PaxxTouch Web Flasher</title>
+  <meta name="description" content="Flash PaxxTouch firmware to BTT K-Touch or PandaTouch from your browser.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>PaxxTouch Web Flasher</h1>
+      <p>Flash custom firmware to BTT K-Touch / PandaTouch — no drivers, no PlatformIO.</p>
+      <p><span class="badge" id="versionBadge">loading…</span></p>
+    </header>
+
+    <section class="card">
+      <h2>Requirements</h2>
+      <ol class="steps">
+        <li>Use <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> on desktop (Web Serial API).</li>
+        <li>This page must be served over <strong>HTTPS</strong> (GitHub Pages works).</li>
+        <li>Connect the K-Touch / PandaTouch with a <strong>USB-C data cable</strong> to your PC.</li>
+        <li>If the device is not detected, hold <strong>BOOT</strong>, tap <strong>RESET</strong>, release BOOT, then connect.</li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h2>Firmware source</h2>
+      <div class="row">
+        <label><input type="radio" name="source" id="sourceRelease" checked> Latest GitHub Release</label>
+        <label><input type="radio" name="source" id="sourceManual"> Manual files (.bin)</label>
+      </div>
+
+      <div id="panelRelease" style="margin-top:12px">
+        <p style="color:var(--muted);font-size:0.9rem;margin:0 0 8px">
+          Downloads <code>paxxtouch-*.bin</code> assets from the latest GitHub release configured in <code>manifest.json</code>.
+        </p>
+        <button type="button" class="secondary" id="btnFetchRelease">Refresh release info</button>
+      </div>
+
+      <div id="panelManual" class="hidden file-grid">
+        <p style="color:var(--muted);font-size:0.9rem;margin:0">
+          Use files from <code>pio run</code> build output (or a release zip):
+        </p>
+        <div class="file-row"><label>bootloader.bin @ 0x0</label><input type="file" id="fileBootloader" accept=".bin"></div>
+        <div class="file-row"><label>partitions.bin @ 0x8000</label><input type="file" id="filePartitions" accept=".bin"></div>
+        <div class="file-row"><label>boot_app0.bin @ 0xE000 (optional)</label><input type="file" id="fileBootApp0" accept=".bin"></div>
+        <div class="file-row"><label>firmware.bin @ 0x10000</label><input type="file" id="fileFirmware" accept=".bin"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Flash</h2>
+      <div class="status" id="status">Initializing…</div>
+
+      <div class="progress-wrap" id="progressWrap">
+        <progress id="progress" max="100" value="0"></progress>
+        <div style="text-align:center;margin-top:4px;font-size:0.85rem;color:var(--muted)" id="progressLabel"></div>
+      </div>
+
+      <div class="row" style="margin-top:16px">
+        <button type="button" id="btnConnect">1. Connect USB</button>
+        <button type="button" id="btnFlash" disabled>2. Flash PaxxTouch</button>
+        <button type="button" class="secondary" id="btnDisconnect" disabled>Disconnect</button>
+      </div>
+
+      <div class="log" id="log" aria-live="polite"></div>
+    </section>
+
+    <section class="card">
+      <h2>After flashing</h2>
+      <ol class="steps">
+        <li>Disconnect USB (or tap Reset if the screen stays blank).</li>
+        <li>Power on the K-Touch and connect to Wi‑Fi via <strong>Settings → WiFi Setup</strong>.</li>
+        <li>Enter your Snapmaker U1 IP in <strong>Settings → Printer Connection</strong>.</li>
+        <li>Ensure the U1 is running <a href="https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware" target="_blank" rel="noopener">Paxx Extended Firmware</a>.</li>
+      </ol>
+    </section>
+
+    <footer>
+      <p>
+        Uses <a href="https://github.com/espressif/esptool-js" target="_blank" rel="noopener">esptool-js</a>
+        and the Web Serial API.
+        <a href="https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware" target="_blank" rel="noopener">Paxx U1 Firmware</a>
+      </p>
+    </footer>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
