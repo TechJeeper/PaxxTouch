@@ -90,7 +90,7 @@ void ThumbnailLoader::begin(const char *host, uint16_t port, bool useAuth, const
     }
     if (!mutex_) mutex_ = xSemaphoreCreateMutex();
     if (!workerTask_) {
-        xTaskCreatePinnedToCore(worker, "thumbLoad", 8192, this, 3, &workerTask_, 0);
+        xTaskCreatePinnedToCore(worker, "thumbLoad", 12288, this, 3, &workerTask_, 0);
     }
 }
 

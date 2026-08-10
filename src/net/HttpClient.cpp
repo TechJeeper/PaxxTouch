@@ -52,31 +52,50 @@ void HttpClient::writeAuthHeaders(Client &client) {
     }
 }
 
-void HttpClient::postTouchFast(WiFiClient &client, const char *path) {
-    if (!host_[0] || !path) return;
+bool HttpClient::postTouchFast(WiFiClient &client, const char *path) {
+    if (!host_[0] || !path) return false;
 
-    client.setTimeout(150);
+    client.setTimeout(200);
     if (!client.connected()) {
         client.stop();
-        if (!client.connect(host_, port_)) return;
+        if (!client.connect(host_, port_, 300)) {
+            Serial.println("[Remote] touch connect failed");
+            return false;
+        }
     }
 
     client.print(String("POST ") + path + " HTTP/1.1\r\n");
     client.print(String("Host: ") + host_ + "\r\n");
     writeAuthHeaders(client);
-    client.print("Content-Length: 0\r\nConnection: keep-alive\r\n\r\n");
+    client.print("Content-Length: 0\r\nConnection: close\r\n\r\n");
     client.flush();
 
-    const uint32_t deadline = millis() + 60;
-    while (static_cast<int32_t>(deadline - millis()) > 0) {
-        bool readAny = false;
+    char statusLine[32] = {};
+    size_t idx = 0;
+    const uint32_t deadline = millis() + 400;
+    while (idx < sizeof(statusLine) - 1 && static_cast<int32_t>(deadline - millis()) > 0) {
         while (client.available()) {
-            client.read();
-            readAny = true;
+            const char c = static_cast<char>(client.read());
+            if (c == '\n') goto done;
+            if (c != '\r') statusLine[idx++] = c;
         }
-        if (!readAny) delay(1);
-        if (!readAny && !client.connected()) break;
+        if (!client.connected() && !client.available()) break;
+        delay(1);
     }
+done:
+    client.stop();
+
+    int code = 0;
+    if (strncmp(statusLine, "HTTP/1.", 7) == 0) {
+        const char *sp = strchr(statusLine + 7, ' ');
+        if (sp) code = atoi(sp + 1);
+    }
+    lastCode_ = code;
+    if (code != 200) {
+        Serial.printf("[Remote] touch HTTP %d (%s)\n", code, statusLine[0] ? statusLine : "no response");
+        return false;
+    }
+    return true;
 }
 
 int HttpClient::download(const char *path, uint8_t *buffer, size_t bufferSize, int timeoutMs,

@@ -1,5 +1,6 @@
 {
   "name": "PaxxTouch",
+  "version": "0.0.1",
   "description": "Custom firmware for BTT K-Touch / PandaTouch — Snapmaker U1 + Paxx Extended Firmware",
   "chip": "ESP32-S3",
   "hardware": "BTT K-Touch / PandaTouch (ESP32-S3, 16 MB flash, 8 MB PSRAM)",

@@ -20,6 +20,18 @@ struct TimelapseEntry {
     double modified;
 };
 
+struct GcodePrintColor {
+    char hex[16];
+    float weightG = 0.0f;
+};
+
+struct GcodeMetadata {
+    char filename[128] = {};
+    GcodePrintColor colors[4];
+    int colorCount = 0;
+    float estimatedMinutes = 0.0f;
+};
+
 using FileListCallback = std::function<void(bool ok, const std::vector<MoonrakerFileEntry> &files)>;
 using TimelapseListCallback = std::function<void(bool ok, const std::vector<TimelapseEntry> &items)>;
 using LoginCallback = std::function<void(bool ok, const char *token)>;
@@ -35,6 +47,8 @@ public:
     void listFiles(const char *root, const char *path, FileListCallback cb);
     void listTimelapses(TimelapseListCallback cb);
     bool startPrint(const char *root, const char *filename);
+    bool getGcodeMetadata(const char *filename, GcodeMetadata &out);
+    bool setExtruderMapTable(const int *toolForColor, int colorCount);
     bool sendGcodeScript(const char *script);
     bool setFilamentSlot(int slot, const char *material, const char *color);
     const char *authToken() const { return token_; }

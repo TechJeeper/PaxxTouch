@@ -57,7 +57,8 @@ async function loadManifest() {
   const resp = await fetch("./manifest.json", { cache: "no-cache" });
   if (!resp.ok) throw new Error("Could not load manifest.json");
   state.manifest = await resp.json();
-  $("versionBadge").textContent = state.manifest.name || "manifest loaded";
+  const ver = state.manifest.version ? `v${state.manifest.version}` : "";
+  $("versionBadge").textContent = ver ? `${state.manifest.name} ${ver}` : (state.manifest.name || "manifest loaded");
 }
 
 async function fetchLatestRelease() {
@@ -79,7 +80,8 @@ async function fetchLatestRelease() {
   }
   const release = await resp.json();
   state.release = release;
-  $("versionBadge").textContent = release.tag_name;
+  const tag = release.tag_name.replace(/^v/i, "");
+  $("versionBadge").textContent = `${state.manifest.name} v${tag}`;
   setStatus(`Release ${release.tag_name} ready (${release.assets.length} assets)`, "ok");
   return release;
 }

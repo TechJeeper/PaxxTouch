@@ -1,4 +1,4 @@
-# PaxxTouch v1.0.0
+# PaxxTouch v0.0.1
 
 Custom firmware for **BIGTREETECH K-Touch** and **PandaTouch**, built for the **Snapmaker U1** running [Paxx Extended Firmware](https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware).
 

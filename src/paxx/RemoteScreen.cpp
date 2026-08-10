@@ -65,7 +65,7 @@ void RemoteScreenClient::begin(const char *host, bool useAuth, const char *user,
     }
 
     if (!snapshotTask_) {
-        xTaskCreatePinnedToCore(snapshotWorker, "remoteSnap", 8192, this, 2, &snapshotTask_, 0);
+        xTaskCreatePinnedToCore(snapshotWorker, "remoteSnap", 12288, this, 2, &snapshotTask_, 0);
     }
 }
 
@@ -97,7 +97,10 @@ void RemoteScreenClient::sendTouchEvent(RemoteScreenClient *self, const TouchPoi
     char path[80];
     snprintf(path, sizeof(path), "/screen/touch?a=%s&x=%d&y=%d",
              touchActionName(pt.action), pt.x, pt.y);
-    self->touchHttp_.postTouchFast(self->touchClient_, path);
+    Serial.printf("[Remote] touch %s %d,%d\n", touchActionName(pt.action), pt.x, pt.y);
+    if (!self->touchHttp_.postTouchFast(self->touchClient_, path)) {
+        Serial.println("[Remote] touch POST failed");
+    }
 }
 
 void RemoteScreenClient::flushTouchBatch(RemoteScreenClient *self, TouchPoint &down, TouchPoint &move, TouchPoint &up,
@@ -234,7 +237,6 @@ void RemoteScreenClient::resetProbe() {
 
     probeState_ = RemoteProbeState::Running;
     probeError_[0] = '\0';
-    abortSnapshot_ = true;
 
     if (probeTask_ == nullptr) {
         xTaskCreate(probeWorker, "remoteProbe", 8192, this, 5, &probeTask_);
@@ -249,9 +251,6 @@ void RemoteScreenClient::probeWorker(void *arg) {
 
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
-        self->abortSnapshot_ = true;
-        vTaskDelay(pdMS_TO_TICKS(50));
 
         const bool ok = self->probeAvailable();
         if (ok) {
@@ -346,7 +345,9 @@ void RemoteScreenClient::snapshotWorker(void *arg) {
 }
 
 bool RemoteScreenClient::probeAvailable() {
-    if (host_[0] == '\0' || !enabled_ || !buffer_) return false;
+    if (host_[0] == '\0' || !enabled_ || !buffer_ || !httpMutex_) return false;
+
+    xSemaphoreTake(httpMutex_, portMAX_DELAY);
 
     int len = 0;
     abortSnapshot_ = false;
@@ -354,18 +355,21 @@ bool RemoteScreenClient::probeAvailable() {
     snprintf(path, sizeof(path), "/screen/snapshot?t=%lu", static_cast<unsigned long>(millis()));
     len = probeHttp_.download(path, buffer_, kBufferSize, 8000);
 
+    bool ok = false;
     if (len > 0 && (looksLikePng(buffer_, static_cast<size_t>(len)) ||
                     looksLikeJpeg(buffer_, static_cast<size_t>(len)))) {
         Serial.printf("[Remote] probe OK snapshot (%d bytes)\n", len);
-        return true;
+        ok = true;
+    } else {
+        String out;
+        if (probeHttp_.getString("/screen/", out, 5000) && out.length() > 0) {
+            Serial.println("[Remote] probe via /screen/ HTML OK");
+            ok = true;
+        } else {
+            Serial.printf("[Remote] probe failed http=%d len=%d\n", probeHttp_.statusCode(), len);
+        }
     }
 
-    String out;
-    if (probeHttp_.getString("/screen/", out, 5000) && out.length() > 0) {
-        Serial.println("[Remote] probe via /screen/ HTML OK");
-        return true;
-    }
-
-    Serial.printf("[Remote] probe failed http=%d len=%d\n", probeHttp_.statusCode(), len);
-    return false;
+    xSemaphoreGive(httpMutex_);
+    return ok;
 }

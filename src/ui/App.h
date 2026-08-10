@@ -75,17 +75,22 @@ public:
     void setHint(const char *text);
     int &editSlot() { return editSlot_; }
     lv_obj_t *materialInput() const { return materialTa_; }
-    lv_obj_t *colorInput() const { return colorTa_; }
+    const char *selectedColor() const { return selectedColor_; }
+    void setSelectedColor(const char *hex);
+    void updateColorPreview();
 private:
     void rebuildGrid(const PrinterStatus &status);
     bool filamentsChanged(const std::vector<FilamentSlot> &filaments) const;
+    void buildColorPicker();
 
     PaxxApp *app_ = nullptr;
     lv_obj_t *screen_ = nullptr;
     lv_obj_t *grid_ = nullptr;
     lv_obj_t *hintLbl_ = nullptr;
     lv_obj_t *materialTa_ = nullptr;
-    lv_obj_t *colorTa_ = nullptr;
+    lv_obj_t *colorSwatch_ = nullptr;
+    lv_obj_t *colorGrid_ = nullptr;
+    char selectedColor_[16] = "#888888";
     int editSlot_ = 0;
     std::vector<FilamentSlot> lastFilaments_;
 };
@@ -159,7 +164,36 @@ private:
     lv_image_dsc_t imageDsc_{};
     uint16_t *frameBuf_ = nullptr;
     unsigned long lastFetchMs_ = 0;
-    bool fetchInProgress_ = false;
+    unsigned long lastRequestMs_ = 0;
+};
+
+class PrintPrepareScreen {
+public:
+    void create(PaxxApp *app, lv_obj_t *parent);
+    void open(const char *gcodePath);
+    lv_obj_t *root() const { return screen_; }
+
+private:
+    struct ColorRow {
+        lv_obj_t *toolBtns[4] = {};
+    };
+
+    void rebuildRows();
+    void setToolForColor(int colorIndex, int tool);
+    void autoMapColors();
+    void startPrintJob();
+    static void onToolPick(lv_event_t *e);
+
+    PaxxApp *app_ = nullptr;
+    lv_obj_t *screen_ = nullptr;
+    lv_obj_t *titleLbl_ = nullptr;
+    lv_obj_t *metaLbl_ = nullptr;
+    lv_obj_t *rowsPanel_ = nullptr;
+    lv_obj_t *hintLbl_ = nullptr;
+    char gcodePath_[128] = {};
+    GcodeMetadata meta_{};
+    int toolMap_[4] = {0, 1, 2, 3};
+    ColorRow rows_[4];
 };
 
 class FilesScreen {
@@ -295,6 +329,7 @@ public:
     void showTimelapse();
     void showCamera();
     void showFiles();
+    void showPrintPrepare(const char *gcodePath);
     void showControls();
     void showTerminal();
     void showSettings();
@@ -313,6 +348,7 @@ public:
     TerminalScreen &terminal() { return terminal_; }
     TimelapseScreen &timelapse() { return timelapse_; }
     FilesScreen &files() { return files_; }
+    PrintPrepareScreen &printPrepare() { return printPrepare_; }
 
 private:
     void buildShell();
@@ -347,6 +383,7 @@ private:
     TimelapseScreen timelapse_;
     CameraScreen cameraScreen_;
     FilesScreen files_;
+    PrintPrepareScreen printPrepare_;
     ControlsScreen controls_;
     TerminalScreen terminal_;
     SettingsScreen settings_;
@@ -355,3 +392,4 @@ private:
 };
 
 void paxx_back_home_cb(lv_event_t *e);
+void paxx_back_files_cb(lv_event_t *e);

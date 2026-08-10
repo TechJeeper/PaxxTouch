@@ -34,6 +34,43 @@ ImageFit fitImageInArea(int imgW, int imgH, int areaW, int areaH) {
     return fit;
 }
 
+uint32_t parseHexColor(const char *hex, uint32_t fallback = 0x888888) {
+    if (!hex || !hex[0]) return fallback;
+    const char *p = hex[0] == '#' ? hex + 1 : hex;
+    char buf[7] = {};
+    strlcpy(buf, p, sizeof(buf));
+    return strtoul(buf, nullptr, 16);
+}
+
+lv_color_t hexToLvColor(const char *hex) {
+    const uint32_t rgb = parseHexColor(hex);
+    return lv_color_hex(rgb);
+}
+
+uint32_t colorDistance(const char *a, const char *b) {
+    const uint32_t ca = parseHexColor(a);
+    const uint32_t cb = parseHexColor(b);
+    const int dr = static_cast<int>((ca >> 16) & 0xFF) - static_cast<int>((cb >> 16) & 0xFF);
+    const int dg = static_cast<int>((ca >> 8) & 0xFF) - static_cast<int>((cb >> 8) & 0xFF);
+    const int db = static_cast<int>(ca & 0xFF) - static_cast<int>(cb & 0xFF);
+    return static_cast<uint32_t>(dr * dr + dg * dg + db * db);
+}
+
+int bestToolForPrintColor(const char *printHex, const PrinterStatus &status, int defaultTool) {
+    if (status.filaments.empty()) return defaultTool;
+
+    int bestTool = defaultTool;
+    uint32_t bestDist = UINT32_MAX;
+    for (const FilamentSlot &f : status.filaments) {
+        const uint32_t d = colorDistance(printHex, f.color);
+        if (d < bestDist) {
+            bestDist = d;
+            bestTool = f.index;
+        }
+    }
+    return bestTool;
+}
+
 const char *connectionLabel(ConnectionState s) {
     switch (s) {
         case ConnectionState::Connected: return "Connected";
@@ -81,6 +118,10 @@ lv_obj_t *makeMenuBtn(PaxxApp *app, lv_obj_t *parent, const char *icon, const ch
 
 void paxx_back_home_cb(lv_event_t *e) {
     static_cast<PaxxApp *>(lv_event_get_user_data(e))->showHome();
+}
+
+void paxx_back_files_cb(lv_event_t *e) {
+    static_cast<PaxxApp *>(lv_event_get_user_data(e))->showFiles();
 }
 
 void HomeScreen::create(PaxxApp *app, lv_obj_t *parent) {
@@ -161,7 +202,7 @@ void HomeScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_set_flex_flow(menu, LV_FLEX_FLOW_ROW_WRAP);
     lv_obj_set_flex_align(menu, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
 
-    makeMenuBtn(app, menu, LV_SYMBOL_PLAY, "Print", [](lv_event_t *e) { static_cast<PaxxApp *>(lv_event_get_user_data(e))->showPrint(); });
+    makeMenuBtn(app, menu, LV_SYMBOL_PLAY, "Print", [](lv_event_t *e) { static_cast<PaxxApp *>(lv_event_get_user_data(e))->showFiles(); });
     makeMenuBtn(app, menu, LV_SYMBOL_TINT, "Filament", [](lv_event_t *e) { static_cast<PaxxApp *>(lv_event_get_user_data(e))->showFilament(); });
     makeMenuBtn(app, menu, LV_SYMBOL_IMAGE, "Remote", [](lv_event_t *e) { static_cast<PaxxApp *>(lv_event_get_user_data(e))->showRemote(); });
     makeMenuBtn(app, menu, LV_SYMBOL_VIDEO, "Timelapse", [](lv_event_t *e) { static_cast<PaxxApp *>(lv_event_get_user_data(e))->showTimelapse(); });
@@ -203,7 +244,9 @@ void HomeScreen::update(const PrinterStatus &status) {
         lv_label_set_text(filenameLbl_, lastFilename_);
     }
 
-    const int progress = static_cast<int>(status.progress + 0.5f);
+    const int progress = isActivePrint(status.printState)
+                             ? static_cast<int>(status.progress + 0.5f)
+                             : 0;
     if (progress != lastProgress_) {
         lastProgress_ = progress;
         lv_bar_set_value(progressBar_, progress, LV_ANIM_OFF);
@@ -297,8 +340,15 @@ void PrintScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_set_style_border_width(screen_, 0, LV_PART_MAIN);
     paxx_create_nav_bar(screen_, "Print Job", paxx_back_home_cb, app, app->isDark());
 
+    lv_obj_t *browse = lv_btn_create(screen_);
+    lv_obj_align(browse, LV_ALIGN_TOP_RIGHT, -8, 52);
+    lv_obj_add_event_cb(browse, [](lv_event_t *e) {
+        static_cast<PaxxApp *>(lv_event_get_user_data(e))->showFiles();
+    }, LV_EVENT_CLICKED, app);
+    lv_label_set_text(lv_label_create(browse), LV_SYMBOL_LIST " Files");
+
     detailsLbl_ = lv_label_create(screen_);
-    lv_obj_align(detailsLbl_, LV_ALIGN_TOP_LEFT, 8, 56);
+    lv_obj_align(detailsLbl_, LV_ALIGN_TOP_LEFT, 8, 88);
     lv_obj_set_width(detailsLbl_, LV_PCT(95));
     lv_label_set_long_mode(detailsLbl_, LV_LABEL_LONG_WRAP);
 
@@ -339,6 +389,61 @@ void PrintScreen::update(const PrinterStatus &status) {
     lv_label_set_text(messageLbl_, status.stateMessage[0] ? status.stateMessage : "");
 }
 
+void FilamentScreen::setSelectedColor(const char *hex) {
+    if (!hex || !hex[0]) return;
+    if (hex[0] == '#') strlcpy(selectedColor_, hex, sizeof(selectedColor_));
+    else snprintf(selectedColor_, sizeof(selectedColor_), "#%.6s", hex);
+    updateColorPreview();
+}
+
+void FilamentScreen::updateColorPreview() {
+    if (!colorSwatch_) return;
+    lv_obj_set_style_bg_color(colorSwatch_, hexToLvColor(selectedColor_), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(colorSwatch_, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_color(colorSwatch_, PaxxTheme::muted(app_->isDark()), LV_PART_MAIN);
+    lv_obj_set_style_border_width(colorSwatch_, 2, LV_PART_MAIN);
+}
+
+void FilamentScreen::buildColorPicker() {
+    if (!screen_) return;
+
+    colorSwatch_ = lv_obj_create(screen_);
+    lv_obj_set_size(colorSwatch_, 40, 40);
+    lv_obj_align(colorSwatch_, LV_ALIGN_BOTTOM_LEFT, 8, -118);
+    lv_obj_set_style_radius(colorSwatch_, 6, LV_PART_MAIN);
+    updateColorPreview();
+
+    colorGrid_ = lv_obj_create(screen_);
+    lv_obj_align(colorGrid_, LV_ALIGN_BOTTOM_LEFT, 56, -130);
+    lv_obj_set_size(colorGrid_, 420, 56);
+    lv_obj_set_style_bg_opa(colorGrid_, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(colorGrid_, 0, LV_PART_MAIN);
+    lv_obj_set_flex_flow(colorGrid_, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_style_pad_column(colorGrid_, 4, LV_PART_MAIN);
+    lv_obj_set_style_pad_row(colorGrid_, 4, LV_PART_MAIN);
+
+    static const char *kPalette[] = {
+        "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF8800", "#FF00FF",
+        "#00FFFF", "#FFFFFF", "#000000", "#808080", "#F8F81C", "#080A0D",
+        "#6F4C2F", "#E72F1D", "#FFC0CB", "#8B4513", "#4B0082", "#228B22",
+        "#1E90FF", "#FFD700", "#C0C0C0", "#800000", "#008080", "#A0522D",
+    };
+
+    for (const char *hex : kPalette) {
+        lv_obj_t *btn = lv_btn_create(colorGrid_);
+        lv_obj_set_size(btn, 28, 28);
+        lv_obj_set_style_bg_color(btn, hexToLvColor(hex), LV_PART_MAIN);
+        lv_obj_set_style_pad_all(btn, 0, LV_PART_MAIN);
+        lv_obj_set_user_data(btn, const_cast<char *>(hex));
+        lv_obj_add_event_cb(btn, [](lv_event_t *e) {
+            auto *self = static_cast<FilamentScreen *>(lv_event_get_user_data(e));
+            const char *hex = static_cast<const char *>(
+                lv_obj_get_user_data(static_cast<lv_obj_t *>(lv_event_get_target(e))));
+            self->setSelectedColor(hex);
+        }, LV_EVENT_CLICKED, this);
+    }
+}
+
 void FilamentScreen::setHint(const char *text) {
     if (hintLbl_) lv_label_set_text(hintLbl_, text ? text : "");
 }
@@ -363,11 +468,27 @@ void FilamentScreen::rebuildGrid(const PrinterStatus &status) {
     auto addSlotCard = [&](int index, bool loaded, int mappedTool, const char *material, const char *color) {
         lv_obj_t *card = lv_btn_create(grid_);
         lv_obj_set_size(card, 180, 88);
-        lv_obj_t *lbl = lv_label_create(card);
-        lv_label_set_text_fmt(lbl, "T%d  %s\n%s  %s\nmap T%d",
+
+        lv_obj_t *row = lv_obj_create(card);
+        lv_obj_set_size(row, LV_PCT(100), LV_PCT(100));
+        lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_border_width(row, 0, LV_PART_MAIN);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_column(row, 8, LV_PART_MAIN);
+        paxx_disable_input(row);
+
+        lv_obj_t *swatch = lv_obj_create(row);
+        lv_obj_set_size(swatch, 28, 28);
+        lv_obj_set_style_bg_color(swatch, hexToLvColor(color), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(swatch, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_border_width(swatch, 1, LV_PART_MAIN);
+        lv_obj_set_style_radius(swatch, 4, LV_PART_MAIN);
+
+        lv_obj_t *lbl = lv_label_create(row);
+        lv_label_set_text_fmt(lbl, "T%d  %s\n%s\nmap T%d",
                               index, loaded ? "present" : "empty",
-                              material && material[0] ? material : "(none)",
-                              color && color[0] ? color : "(no color)", mappedTool);
+                              material && material[0] ? material : "(none)", mappedTool);
         lv_obj_set_user_data(card, reinterpret_cast<void *>(static_cast<intptr_t>(index)));
         lv_obj_add_event_cb(card, [](lv_event_t *e) {
             auto *self = static_cast<FilamentScreen *>(lv_event_get_user_data(e));
@@ -378,11 +499,11 @@ void FilamentScreen::rebuildGrid(const PrinterStatus &status) {
             for (const FilamentSlot &f : self->lastFilaments_) {
                 if (f.index != tool) continue;
                 lv_textarea_set_text(self->materialTa_, f.material);
-                lv_textarea_set_text(self->colorTa_, f.color);
+                self->setSelectedColor(f.color);
                 break;
             }
             char buf[32];
-            snprintf(buf, sizeof(buf), "Editing T%d — update material/color below", tool);
+            snprintf(buf, sizeof(buf), "Editing T%d — pick color swatch below", tool);
             self->setHint(buf);
         }, LV_EVENT_CLICKED, this);
     };
@@ -430,7 +551,7 @@ void FilamentScreen::create(PaxxApp *app, lv_obj_t *parent) {
 
     grid_ = lv_obj_create(screen_);
     lv_obj_align(grid_, LV_ALIGN_TOP_MID, 0, 52);
-    lv_obj_set_size(grid_, LV_PCT(96), 180);
+    lv_obj_set_size(grid_, LV_PCT(96), 150);
     lv_obj_set_style_bg_opa(grid_, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(grid_, 0, LV_PART_MAIN);
     lv_obj_set_flex_flow(grid_, LV_FLEX_FLOW_ROW_WRAP);
@@ -440,11 +561,8 @@ void FilamentScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_align(materialTa_, LV_ALIGN_BOTTOM_LEFT, 8, -80);
     lv_textarea_set_placeholder_text(materialTa_, "Material");
     PaxxKeyboard::attach(materialTa_);
-    colorTa_ = lv_textarea_create(screen_);
-    lv_obj_set_width(colorTa_, 120);
-    lv_obj_align(colorTa_, LV_ALIGN_BOTTOM_LEFT, 200, -80);
-    lv_textarea_set_placeholder_text(colorTa_, "Color");
-    PaxxKeyboard::attach(colorTa_);
+
+    buildColorPicker();
 
     lv_obj_t *saveBtn = lv_btn_create(screen_);
     lv_obj_align(saveBtn, LV_ALIGN_BOTTOM_RIGHT, -8, -80);
@@ -453,7 +571,7 @@ void FilamentScreen::create(PaxxApp *app, lv_obj_t *parent) {
         a->ensureMoonrakerRest();
         if (a->moonrakerRest().setFilamentSlot(a->filament().editSlot(),
                 lv_textarea_get_text(a->filament().materialInput()),
-                lv_textarea_get_text(a->filament().colorInput()))) {
+                a->filament().selectedColor())) {
             a->filament().setHint("Saved via Paxx filament API");
             PaxxNotify::show("Filament", "Slot updated");
         } else {
@@ -476,6 +594,7 @@ void RemoteScreenView::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_set_size(screen_, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_bg_opa(screen_, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(screen_, 0, LV_PART_MAIN);
+    paxx_disable_input(screen_);
     paxx_create_nav_bar(screen_, "Remote Screen", paxx_back_home_cb, app, app->isDark());
 
     canvasArea_ = lv_obj_create(screen_);
@@ -485,47 +604,50 @@ void RemoteScreenView::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_set_style_border_width(canvasArea_, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(canvasArea_, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(canvasArea_, 0, LV_PART_MAIN);
+    lv_obj_remove_flag(canvasArea_, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(canvasArea_, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(canvasArea_, [](lv_event_t *e) {
+        static_cast<RemoteScreenView *>(lv_event_get_user_data(e))->handleCanvasTouch(e);
+    }, LV_EVENT_ALL, this);
 
     statusLbl_ = lv_label_create(canvasArea_);
     lv_obj_align(statusLbl_, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_width(statusLbl_, LV_PCT(95));
     lv_label_set_long_mode(statusLbl_, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(statusLbl_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    paxx_disable_input(statusLbl_);
+
     image_ = lv_image_create(canvasArea_);
     lv_obj_center(image_);
-
-    lv_obj_add_event_cb(canvasArea_, [](lv_event_t *e) {
-        static_cast<RemoteScreenView *>(lv_event_get_user_data(e))->handleCanvasTouch(e);
-    }, LV_EVENT_ALL, this);
+    paxx_disable_input(image_);
 }
 
 void RemoteScreenView::handleCanvasTouch(lv_event_t *e) {
     const lv_event_code_t code = lv_event_get_code(e);
     if (code != LV_EVENT_PRESSED && code != LV_EVENT_PRESSING && code != LV_EVENT_RELEASED) return;
+    if (frameW_ <= 0 || frameH_ <= 0) return;
 
     const unsigned long now = millis();
     lastTouchActivityMs_ = now;
 
+    lv_indev_t *indev = lv_event_get_indev(e);
+    if (!indev) return;
     lv_point_t pt;
-    lv_indev_get_point(lv_indev_active(), &pt);
-    lv_area_t area;
-    lv_obj_get_coords(canvasArea_, &area);
-    if (pt.x < area.x1 || pt.x > area.x2 || pt.y < area.y1 || pt.y > area.y2) return;
+    lv_indev_get_point(indev, &pt);
 
-    const int areaW = lv_obj_get_width(canvasArea_);
-    const int areaH = lv_obj_get_height(canvasArea_);
-    const int imgW = frameW_ > 0 ? frameW_ : RemoteScreenClient::U1_WIDTH;
-    const int imgH = frameH_ > 0 ? frameH_ : RemoteScreenClient::U1_HEIGHT;
-    const ImageFit fit = fitImageInArea(imgW, imgH, areaW, areaH);
-    if (fit.dispW <= 0 || fit.dispH <= 0) return;
+    lv_area_t imgArea;
+    lv_obj_get_coords(image_, &imgArea);
+    if (pt.x < imgArea.x1 || pt.x > imgArea.x2 || pt.y < imgArea.y1 || pt.y > imgArea.y2) return;
 
-    const int localX = pt.x - area.x1 - fit.offsetX;
-    const int localY = pt.y - area.y1 - fit.offsetY;
-    if (localX < 0 || localY < 0 || localX >= fit.dispW || localY >= fit.dispH) return;
+    const int dispW = lv_area_get_width(&imgArea);
+    const int dispH = lv_area_get_height(&imgArea);
+    if (dispW <= 0 || dispH <= 0) return;
 
-    const int u1x = map(localX, 0, fit.dispW - 1, 0, imgW - 1);
-    const int u1y = map(localY, 0, fit.dispH - 1, 0, imgH - 1);
+    const int localX = pt.x - imgArea.x1;
+    const int localY = pt.y - imgArea.y1;
+
+    const int u1x = constrain((localX * frameW_ + dispW / 2) / dispW, 0, frameW_ - 1);
+    const int u1y = constrain((localY * frameH_ + dispH / 2) / dispH, 0, frameH_ - 1);
 
     RemoteTouchAction action = RemoteTouchAction::Move;
     if (code == LV_EVENT_PRESSED) {
@@ -537,8 +659,8 @@ void RemoteScreenView::handleCanvasTouch(lv_event_t *e) {
         lastSentU1X_ = u1x;
         lastSentU1Y_ = u1y;
     } else {
-        if (now - lastTouchSendMs_ < 80) return;
-        if (lastSentU1X_ >= 0 && abs(u1x - lastSentU1X_) < 10 && abs(u1y - lastSentU1Y_) < 10) return;
+        if (now - lastTouchSendMs_ < 50) return;
+        if (lastSentU1X_ >= 0 && abs(u1x - lastSentU1X_) < 6 && abs(u1y - lastSentU1Y_) < 6) return;
         lastSentU1X_ = u1x;
         lastSentU1Y_ = u1y;
     }
@@ -561,12 +683,13 @@ void RemoteScreenView::updateStatusLine(const char *text) {
 
 void RemoteScreenView::onEnter() {
     lastFetchMs_ = 0;
-    lastProbeMs_ = 0;
+    lastProbeMs_ = millis();
     lastTouchSendMs_ = 0;
     lastTouchActivityMs_ = 0;
     lastSentU1X_ = -1;
     lastSentU1Y_ = -1;
     serviceAvailable_ = false;
+    failCount_ = 0;
 
     if (!app_->config().remoteScreenEnabled) {
         updateStatusLine("Enable Remote Screen in Settings");
@@ -579,6 +702,7 @@ void RemoteScreenView::onEnter() {
 
     app_->syncServices();
     app_->remoteScreen().resetProbe();
+    app_->remoteScreen().pumpSnapshot();
     updateStatusLine("Connecting to U1 remote screen…");
 }
 
@@ -602,44 +726,23 @@ void RemoteScreenView::onTick() {
     if (!app_->config().remoteScreenEnabled) return;
     if (!WiFi.isConnected()) return;
 
-    const RemoteProbeState probe = app_->remoteScreen().probeState();
-    if (probe == RemoteProbeState::Running) {
-        updateStatusLine("Connecting to U1 remote screen…");
-        return;
-    }
-    if (probe == RemoteProbeState::Idle) {
-        app_->remoteScreen().resetProbe();
-        updateStatusLine("Connecting to U1 remote screen…");
-        return;
-    }
-    if (probe == RemoteProbeState::Failed) {
-        updateStatusLine(app_->remoteScreen().probeError());
-        if (millis() - lastProbeMs_ > 8000) {
-            lastProbeMs_ = millis();
-            app_->remoteScreen().resetProbe();
-        }
-        return;
-    }
-
-    serviceAvailable_ = true;
     app_->remoteScreen().setRefreshIntervalMs(
         (millis() - lastTouchActivityMs_ < 2500) ? 1500UL : 2000UL);
     app_->remoteScreen().pumpSnapshot();
+
+    const RemoteProbeState probe = app_->remoteScreen().probeState();
+    if (probe == RemoteProbeState::Idle) {
+        app_->remoteScreen().resetProbe();
+    } else if (probe == RemoteProbeState::Failed && millis() - lastProbeMs_ > 8000) {
+        lastProbeMs_ = millis();
+        app_->remoteScreen().resetProbe();
+    }
 
     uint8_t *buf = nullptr;
     lv_color_format_t format = LV_COLOR_FORMAT_UNKNOWN;
     int w = 0;
     int h = 0;
-    if (!app_->remoteScreen().pollFrame(buf, format, w, h)) {
-        if (millis() - lastFetchMs_ > 6000 && lastFetchMs_ != 0) {
-            updateStatusLine("Waiting for remote screen frames…");
-        } else if (lastFetchMs_ == 0) {
-            updateStatusLine("");
-        }
-        return;
-    }
-
-    if (buf) {
+    if (app_->remoteScreen().pollFrame(buf, format, w, h) && buf) {
         if (image_) lv_image_set_src(image_, NULL);
         if (frameBuf_) ImageDecoder::freeBuffer(frameBuf_);
         frameBuf_ = buf;
@@ -651,7 +754,22 @@ void RemoteScreenView::onTick() {
         updateStatusLine("");
         lastFetchMs_ = millis();
         failCount_ = 0;
+        serviceAvailable_ = true;
         Serial.printf("[Remote] frame displayed %dx%d\n", w, h);
+        return;
+    }
+
+    if (probe == RemoteProbeState::Failed) {
+        updateStatusLine(app_->remoteScreen().probeError());
+        return;
+    }
+
+    if (lastFetchMs_ == 0 && millis() - lastProbeMs_ < 15000) {
+        updateStatusLine("Connecting to U1 remote screen…");
+    } else if (millis() - lastFetchMs_ > 4000 && lastFetchMs_ != 0) {
+        updateStatusLine("Waiting for remote screen frames…");
+    } else if (lastFetchMs_ == 0) {
+        updateStatusLine("Connecting to U1 remote screen…");
     }
 }
 
@@ -730,8 +848,11 @@ void CameraScreen::create(PaxxApp *app, lv_obj_t *parent) {
 
 void CameraScreen::onEnter() {
     lastFetchMs_ = 0;
+    lastRequestMs_ = 0;
     app_->syncServices();
+    app_->camera().requestFetch();
 }
+
 void CameraScreen::onLeave() {
     releaseFrame();
 }
@@ -742,29 +863,28 @@ void CameraScreen::releaseFrame() {
         ImageDecoder::freeBuffer(frameBuf_);
         frameBuf_ = nullptr;
     }
-    fetchInProgress_ = false;
 }
 
 void CameraScreen::onTick() {
-    if (fetchInProgress_) return;
-    if (millis() - lastFetchMs_ < 800) return;
-    lastFetchMs_ = millis();
-    fetchInProgress_ = true;
-
-    int w = 0, h = 0;
     uint16_t *buf = nullptr;
-    if (app_->camera().fetchSnapshot(buf, w, h)) {
+    int w = 0;
+    int h = 0;
+    if (app_->camera().poll(buf, w, h) && buf) {
         if (image_) lv_image_set_src(image_, NULL);
         if (frameBuf_) ImageDecoder::freeBuffer(frameBuf_);
         frameBuf_ = buf;
         ImageDecoder::bindLvImage(imageDsc_, image_, buf, LV_COLOR_FORMAT_RGB565, w, h);
         lv_label_set_text_fmt(statusLbl_, "Camera %dx%d", w, h);
-    } else {
+        lastFetchMs_ = millis();
+    } else if (lastFetchMs_ == 0 && millis() - lastRequestMs_ > 12000) {
         lv_label_set_text_fmt(statusLbl_,
-            "Camera unavailable (HTTP %d)\nEnable paxx12 internal camera in firmware-config",
+            "Camera unavailable (HTTP %d)\nCheck printer webcam / API key",
             app_->camera().lastHttpCode());
     }
-    fetchInProgress_ = false;
+
+    if (millis() - lastRequestMs_ < 1500) return;
+    lastRequestMs_ = millis();
+    app_->camera().requestFetch();
 }
 
 void FilesScreen::create(PaxxApp *app, lv_obj_t *parent) {
@@ -781,7 +901,7 @@ void FilesScreen::create(PaxxApp *app, lv_obj_t *parent) {
 
     statusLbl_ = lv_label_create(screen_);
     lv_obj_align(statusLbl_, LV_ALIGN_BOTTOM_MID, 0, -8);
-    lv_label_set_text(statusLbl_, "Tap file to start print");
+    lv_label_set_text(statusLbl_, "Tap a file to map colors and print");
 }
 
 void FilesScreen::onEnter() { refreshList(); }
@@ -808,29 +928,205 @@ void FilesScreen::refreshList() {
             return;
         }
         int count = 0;
+        fileCtxs_.reserve(48);
         for (const auto &f : files) {
             if (f.isDir) continue;
             const char *name = strrchr(f.path, '/');
             name = name ? name + 1 : f.path;
             if (!strstr(name, ".gcode") && !strstr(name, ".gco") && !strstr(name, ".GCODE")) continue;
-            fileCtxs_.push_back({app_, {}});
+
+            fileCtxs_.push_back({});
             FileCtx &ctx = fileCtxs_.back();
+            ctx.app = app_;
             strlcpy(ctx.path, f.path, sizeof(ctx.path));
+
+            const size_t idx = fileCtxs_.size() - 1;
             lv_obj_t *btn = lv_list_add_button(list_, LV_SYMBOL_FILE, name);
+            lv_obj_set_user_data(btn, reinterpret_cast<void *>(idx));
             lv_obj_add_event_cb(btn, [](lv_event_t *e) {
-                auto *ctx = static_cast<FileCtx *>(lv_event_get_user_data(e));
-                ctx->app->ensureMoonrakerRest();
-                if (ctx->app->moonrakerRest().startPrint("gcodes", ctx->path)) {
-                    PaxxNotify::show("Print", "Print started");
-                    ctx->app->showPrint();
-                } else {
-                    PaxxNotify::show("Print", "Failed to start print");
-                }
-            }, LV_EVENT_CLICKED, &ctx);
+                auto *self = static_cast<FilesScreen *>(lv_event_get_user_data(e));
+                const size_t idx = reinterpret_cast<size_t>(
+                    lv_obj_get_user_data(static_cast<lv_obj_t *>(lv_event_get_target(e))));
+                if (!self || idx >= self->fileCtxs_.size()) return;
+                self->app_->showPrintPrepare(self->fileCtxs_[idx].path);
+            }, LV_EVENT_CLICKED, this);
             if (++count >= 40) break;
         }
-        lv_label_set_text_fmt(statusLbl_, "%d printable file(s)", count);
+        lv_label_set_text_fmt(statusLbl_, "%d printable file(s) — tap to prepare", count);
     });
+}
+
+void PrintPrepareScreen::create(PaxxApp *app, lv_obj_t *parent) {
+    app_ = app;
+    screen_ = lv_obj_create(parent);
+    lv_obj_set_size(screen_, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_bg_opa(screen_, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(screen_, 0, LV_PART_MAIN);
+    paxx_create_nav_bar(screen_, "Prepare Print", paxx_back_files_cb, app, app->isDark());
+
+    titleLbl_ = lv_label_create(screen_);
+    lv_obj_align(titleLbl_, LV_ALIGN_TOP_LEFT, 8, 56);
+    lv_obj_set_width(titleLbl_, LV_PCT(96));
+    lv_label_set_long_mode(titleLbl_, LV_LABEL_LONG_DOT);
+
+    metaLbl_ = lv_label_create(screen_);
+    lv_obj_align(metaLbl_, LV_ALIGN_TOP_LEFT, 8, 78);
+    lv_obj_set_width(metaLbl_, LV_PCT(96));
+    lv_label_set_long_mode(metaLbl_, LV_LABEL_LONG_WRAP);
+
+    rowsPanel_ = lv_obj_create(screen_);
+    lv_obj_align(rowsPanel_, LV_ALIGN_TOP_MID, 0, 108);
+    lv_obj_set_size(rowsPanel_, LV_PCT(96), 240);
+    lv_obj_set_style_bg_opa(rowsPanel_, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(rowsPanel_, 0, LV_PART_MAIN);
+    lv_obj_set_flex_flow(rowsPanel_, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(rowsPanel_, 8, LV_PART_MAIN);
+
+    hintLbl_ = lv_label_create(screen_);
+    lv_obj_align(hintLbl_, LV_ALIGN_BOTTOM_MID, 0, -52);
+    lv_obj_set_width(hintLbl_, LV_PCT(96));
+    lv_label_set_text(hintLbl_, "Map each print color to a toolhead, then confirm.");
+
+    lv_obj_t *cancelBtn = lv_btn_create(screen_);
+    lv_obj_align(cancelBtn, LV_ALIGN_BOTTOM_LEFT, 8, -8);
+    lv_obj_add_event_cb(cancelBtn, [](lv_event_t *e) {
+        static_cast<PaxxApp *>(lv_event_get_user_data(e))->showFiles();
+    }, LV_EVENT_CLICKED, app);
+    lv_label_set_text(lv_label_create(cancelBtn), "Cancel");
+
+    lv_obj_t *startBtn = lv_btn_create(screen_);
+    lv_obj_align(startBtn, LV_ALIGN_BOTTOM_RIGHT, -8, -8);
+    lv_obj_set_style_bg_color(startBtn, PaxxTheme::accent(), LV_PART_MAIN);
+    lv_obj_add_event_cb(startBtn, [](lv_event_t *e) {
+        static_cast<PrintPrepareScreen *>(lv_event_get_user_data(e))->startPrintJob();
+    }, LV_EVENT_CLICKED, this);
+    lv_label_set_text(lv_label_create(startBtn), "Start Print");
+}
+
+void PrintPrepareScreen::open(const char *gcodePath) {
+    gcodePath_[0] = '\0';
+    meta_ = {};
+    if (!gcodePath || !gcodePath[0]) return;
+
+    strlcpy(gcodePath_, gcodePath, sizeof(gcodePath_));
+    const char *name = strrchr(gcodePath_, '/');
+    name = name ? name + 1 : gcodePath_;
+    lv_label_set_text_fmt(titleLbl_, "File: %s", name);
+    lv_label_set_text(metaLbl_, "Loading metadata…");
+
+    app_->ensureMoonrakerRest();
+    if (!app_->moonrakerRest().getGcodeMetadata(gcodePath_, meta_)) {
+        lv_label_set_text(metaLbl_, "Could not read file metadata — using defaults");
+        meta_.colorCount = 1;
+        strlcpy(meta_.colors[0].hex, "#888888", sizeof(meta_.colors[0].hex));
+    } else {
+        lv_label_set_text_fmt(metaLbl_, "~%.0f min · %d color(s) — assign each to T0–T3",
+                              meta_.estimatedMinutes, meta_.colorCount);
+    }
+
+    autoMapColors();
+    rebuildRows();
+}
+
+void PrintPrepareScreen::autoMapColors() {
+    const PrinterStatus &st = app_->moonraker().status();
+    for (int i = 0; i < meta_.colorCount && i < 4; ++i) {
+        toolMap_[i] = bestToolForPrintColor(meta_.colors[i].hex, st, i);
+    }
+}
+
+void PrintPrepareScreen::setToolForColor(int colorIndex, int tool) {
+    if (colorIndex < 0 || colorIndex >= meta_.colorCount || colorIndex >= 4) return;
+    toolMap_[colorIndex] = constrain(tool, 0, 3);
+    rebuildRows();
+}
+
+void PrintPrepareScreen::onToolPick(lv_event_t *e) {
+    auto *self = static_cast<PrintPrepareScreen *>(lv_event_get_user_data(e));
+    const intptr_t packed = reinterpret_cast<intptr_t>(
+        lv_obj_get_user_data(static_cast<lv_obj_t *>(lv_event_get_target(e))));
+    self->setToolForColor(static_cast<int>(packed / 10), static_cast<int>(packed % 10));
+}
+
+void PrintPrepareScreen::rebuildRows() {
+    if (!rowsPanel_) return;
+    lv_obj_clean(rowsPanel_);
+    memset(rows_, 0, sizeof(rows_));
+
+    const PrinterStatus &st = app_->moonraker().status();
+    const bool dark = app_->isDark();
+
+    for (int i = 0; i < meta_.colorCount && i < 4; ++i) {
+        lv_obj_t *row = lv_obj_create(rowsPanel_);
+        lv_obj_set_width(row, LV_PCT(100));
+        lv_obj_set_height(row, 52);
+        lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_border_width(row, 0, LV_PART_MAIN);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_column(row, 8, LV_PART_MAIN);
+        paxx_disable_input(row);
+
+        lv_obj_t *swatch = lv_obj_create(row);
+        lv_obj_set_size(swatch, 36, 36);
+        lv_obj_set_style_bg_color(swatch, hexToLvColor(meta_.colors[i].hex), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(swatch, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_radius(swatch, 6, LV_PART_MAIN);
+
+        lv_obj_t *lbl = lv_label_create(row);
+        lv_label_set_text_fmt(lbl, "Color %d\n%s%.1fg",
+                              i + 1, meta_.colors[i].hex,
+                              meta_.colors[i].weightG);
+
+        for (int t = 0; t < 4; ++t) {
+            lv_obj_t *btn = lv_btn_create(row);
+            lv_obj_set_size(btn, 44, 36);
+            lv_label_set_text_fmt(lv_label_create(btn), "T%d", t);
+            lv_obj_set_user_data(btn, reinterpret_cast<void *>(static_cast<intptr_t>(i * 10 + t)));
+            lv_obj_add_event_cb(btn, onToolPick, LV_EVENT_CLICKED, this);
+
+            const bool selected = toolMap_[i] == t;
+            lv_obj_set_style_bg_color(btn,
+                selected ? PaxxTheme::primary() : PaxxTheme::surface(dark), LV_PART_MAIN);
+
+            char loadedHint[24] = {};
+            const char *slotColor = "#888888";
+            for (const FilamentSlot &f : st.filaments) {
+                if (f.index == t) {
+                    snprintf(loadedHint, sizeof(loadedHint), "%s", f.material);
+                    slotColor = f.color;
+                    break;
+                }
+            }
+            if (loadedHint[0]) {
+                lv_obj_set_style_border_color(btn, hexToLvColor(slotColor), LV_PART_MAIN);
+                lv_obj_set_style_border_width(btn, selected ? 3 : 1, LV_PART_MAIN);
+            }
+            rows_[i].toolBtns[t] = btn;
+        }
+    }
+}
+
+void PrintPrepareScreen::startPrintJob() {
+    if (gcodePath_[0] == '\0') return;
+
+    app_->ensureMoonrakerRest();
+    lv_label_set_text(hintLbl_, "Applying tool map and starting print…");
+
+    if (!app_->moonrakerRest().setExtruderMapTable(toolMap_, meta_.colorCount)) {
+        lv_label_set_text(hintLbl_, "Tool map failed — check Moonraker connection");
+        PaxxNotify::show("Print", "Failed to set color mapping");
+        return;
+    }
+
+    if (!app_->moonrakerRest().startPrint("gcodes", gcodePath_)) {
+        lv_label_set_text(hintLbl_, "Print start failed");
+        PaxxNotify::show("Print", "Failed to start print");
+        return;
+    }
+
+    PaxxNotify::show("Print", "Print started");
+    app_->showPrint();
 }
 
 void ControlsScreen::create(PaxxApp *app, lv_obj_t *parent) {
@@ -1070,6 +1366,12 @@ void SettingsScreen::create(PaxxApp *app, lv_obj_t *parent) {
     });
     add(LV_SYMBOL_DOWNLOAD, "OTA: ready when on WiFi", [](lv_event_t *e) {
         static_cast<PaxxApp *>(lv_event_get_user_data(e))->settings().setHint("Flash OTA via Arduino IDE or pio upload --upload-port IP");
+    });
+    add(LV_SYMBOL_LIST, "About", [](lv_event_t *e) {
+        auto *a = static_cast<PaxxApp *>(lv_event_get_user_data(e));
+        char buf[128];
+        snprintf(buf, sizeof(buf), "PaxxTouch v" PAXXTOUCH_VERSION " — Snapmaker U1 + Paxx Extended Firmware");
+        a->settings().setHint(buf);
     });
 
     lv_obj_t *about = lv_label_create(screen_);

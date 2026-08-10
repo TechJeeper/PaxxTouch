@@ -2,7 +2,7 @@
 # Usage: .\scripts\package-firmware.ps1 [-Version "1.0.0"]
 
 param(
-    [string]$Version = "1.0.0"
+    [string]$Version = "0.0.1"
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,7 +29,7 @@ if ($BootApp0) {
     Copy-Item $BootApp0.FullName (Join-Path $OutDir "paxxtouch-boot_app0.bin") -Force
     Write-Host "Included boot_app0.bin from $($BootApp0.FullName)"
 } else {
-    Write-Warning "boot_app0.bin not found — web flasher marks it optional; OTA may not work without it."
+    Write-Warning "boot_app0.bin not found - web flasher marks it optional; OTA may not work without it."
 }
 
 $ZipPath = Join-Path $Root "dist\paxxtouch-firmware-v$Version.zip"

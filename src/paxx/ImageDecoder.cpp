@@ -1,34 +1,20 @@
 #include "paxx/ImageDecoder.h"
 
-
-
 #include <PNGdec.h>
-
 #include <TJpg_Decoder.h>
-
 #include <esp_heap_caps.h>
-
 #include <freertos/FreeRTOS.h>
-
 #include <freertos/semphr.h>
-
 #include <freertos/task.h>
-
-
 
 namespace {
 
-
-
 PNG *gPng = nullptr;
-
 uint16_t *gDecodeOut = nullptr;
 uint8_t *gDecodeOut888 = nullptr;
 SemaphoreHandle_t gDecodeMutex = nullptr;
 bool gJpgInited = false;
-
 int gDecodeW = 0;
-
 int gDecodeH = 0;
 
 void ensureJpegDecoder() {
@@ -38,17 +24,10 @@ void ensureJpegDecoder() {
     gJpgInited = true;
 }
 
-
-
 void decodeYield(int y) {
-
     if ((y & 0x1F) != 0) return;
-
     yield();
-
 }
-
-
 
 int pngDrawRgb888(PNGDRAW *pDraw) {
     if (!gDecodeOut888 || !gPng) return 0;
@@ -92,34 +71,19 @@ int pngDrawRgb888(PNGDRAW *pDraw) {
 }
 
 bool jpgOutput(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t *bitmap) {
-
     if (!gDecodeOut || !bitmap) return 0;
-
     for (uint16_t row = 0; row < h; ++row) {
-
         if (y + row >= gDecodeH) break;
-
         memcpy(gDecodeOut + (y + row) * gDecodeW + x, bitmap + row * w, w * sizeof(uint16_t));
-
         decodeYield(y + row);
-
     }
-
     return 1;
-
 }
-
-
 
 bool decodeSizeOk(int w, int h) {
-
     if (w <= 0 || h <= 0 || w > 640 || h > 480) return false;
-
     return static_cast<size_t>(w) * static_cast<size_t>(h) * 2 <= 640 * 480 * 2;
-
 }
-
-
 
 bool decodeSizeOkRgb888(int w, int h) {
     if (w <= 0 || h <= 0 || w > 640 || h > 480) return false;
@@ -178,94 +142,84 @@ bool decodePngInternal(const uint8_t *data, size_t len, uint8_t *&rgb888, int &w
 }
 
 bool decodeJpegInternal(const uint8_t *data, size_t len, uint16_t *&rgb565, int &w, int &h) {
-
     rgb565 = nullptr;
-
     if (!data || len < 4) return false;
 
     ensureJpegDecoder();
 
     uint16_t uw = 0, uh = 0;
-
     if (TJpgDec.getJpgSize(&uw, &uh, const_cast<uint8_t *>(data), len) != JDR_OK) {
-
-        Serial.println("[Image] JPEG size read failed");
-
+        Serial.printf("[Image] JPEG size read failed (len=%u %02x %02x)\n",
+                      static_cast<unsigned>(len), data[0], data[1]);
         return false;
-
     }
-
-
 
     w = uw;
-
     h = uh;
-
     if (!decodeSizeOk(w, h)) {
-
         Serial.printf("[Image] JPEG size rejected %dx%d\n", w, h);
-
         return false;
-
     }
-
-
 
     gDecodeW = w;
-
     gDecodeH = h;
 
-
-
     const size_t bytes = static_cast<size_t>(w) * h * sizeof(uint16_t);
-
     gDecodeOut = static_cast<uint16_t *>(heap_caps_calloc(1, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-
     if (!gDecodeOut) gDecodeOut = static_cast<uint16_t *>(calloc(1, bytes));
-
     if (!gDecodeOut) {
-
         Serial.printf("[Image] JPEG alloc failed %u bytes\n", static_cast<unsigned>(bytes));
-
         return false;
-
     }
-
-
 
     TJpgDec.setCallback(jpgOutput);
-
     TJpgDec.setJpgScale(1);
-
     if (TJpgDec.drawJpg(0, 0, const_cast<uint8_t *>(data), len) != JDR_OK) {
-
         Serial.println("[Image] JPEG decode failed");
-
         free(gDecodeOut);
-
         gDecodeOut = nullptr;
-
         return false;
-
     }
 
-
-
     rgb565 = gDecodeOut;
-
     gDecodeOut = nullptr;
-
     Serial.printf("[Image] JPEG ok %dx%d\n", w, h);
-
     return true;
-
 }
-
-
 
 enum class DecodeKind { Png, Jpeg };
 
-bool runDecodeSerialized(DecodeKind kind, const uint8_t *data, size_t len, void *&out, int &w, int &h) {
+struct DecodeJob {
+    const uint8_t *data;
+    size_t len;
+    DecodeKind kind;
+    void *out;
+    int w;
+    int h;
+    bool ok;
+    SemaphoreHandle_t done;
+};
+
+void decodeWorker(void *arg) {
+    auto *job = static_cast<DecodeJob *>(arg);
+    job->out = nullptr;
+    job->w = job->h = 0;
+
+    if (job->kind == DecodeKind::Png) {
+        uint8_t *buf = nullptr;
+        job->ok = decodePngInternal(job->data, job->len, buf, job->w, job->h);
+        job->out = buf;
+    } else {
+        uint16_t *buf = nullptr;
+        job->ok = decodeJpegInternal(job->data, job->len, buf, job->w, job->h);
+        job->out = buf;
+    }
+
+    xSemaphoreGive(job->done);
+    vTaskDelete(nullptr);
+}
+
+bool runDecodeOnWorker(DecodeKind kind, const uint8_t *data, size_t len, void *&out, int &w, int &h) {
     out = nullptr;
     w = h = 0;
     if (!data || len == 0) return false;
@@ -277,33 +231,54 @@ bool runDecodeSerialized(DecodeKind kind, const uint8_t *data, size_t len, void 
         return false;
     }
 
-    bool ok = false;
-    if (kind == DecodeKind::Png) {
-        uint8_t *buf = nullptr;
-        ok = decodePngInternal(data, len, buf, w, h);
-        out = buf;
-    } else {
-        uint16_t *buf = nullptr;
-        ok = decodeJpegInternal(data, len, buf, w, h);
-        out = buf;
+    DecodeJob job{};
+    job.data = data;
+    job.len = len;
+    job.kind = kind;
+    job.done = xSemaphoreCreateBinary();
+    if (!job.done) {
+        xSemaphoreGive(gDecodeMutex);
+        return false;
     }
 
+    constexpr uint32_t kStackWords = 65536 / sizeof(StackType_t);
+    if (xTaskCreate(decodeWorker, "imgDec", kStackWords, &job, 1, nullptr) != pdPASS) {
+        vSemaphoreDelete(job.done);
+        Serial.println("[Image] decode task create failed");
+        xSemaphoreGive(gDecodeMutex);
+        return false;
+    }
+
+    const bool finished = xSemaphoreTake(job.done, pdMS_TO_TICKS(30000)) == pdTRUE;
+    vSemaphoreDelete(job.done);
+
+    if (!finished) {
+        Serial.println("[Image] decode task timeout");
+        xSemaphoreGive(gDecodeMutex);
+        return false;
+    }
+
+    if (job.ok) {
+        out = job.out;
+        w = job.w;
+        h = job.h;
+    }
     xSemaphoreGive(gDecodeMutex);
-    return ok;
+    return job.ok;
 }
 
 }  // namespace
 
 bool ImageDecoder::decodePng(const uint8_t *data, size_t len, uint8_t *&rgb888, int &w, int &h) {
     void *out = nullptr;
-    const bool ok = runDecodeSerialized(DecodeKind::Png, data, len, out, w, h);
+    const bool ok = runDecodeOnWorker(DecodeKind::Png, data, len, out, w, h);
     rgb888 = static_cast<uint8_t *>(out);
     return ok;
 }
 
 bool ImageDecoder::decodeJpeg(const uint8_t *data, size_t len, uint16_t *&rgb565, int &w, int &h) {
     void *out = nullptr;
-    const bool ok = runDecodeSerialized(DecodeKind::Jpeg, data, len, out, w, h);
+    const bool ok = runDecodeOnWorker(DecodeKind::Jpeg, data, len, out, w, h);
     rgb565 = static_cast<uint16_t *>(out);
     return ok;
 }
@@ -343,5 +318,3 @@ void ImageDecoder::bindLvImage(lv_image_dsc_t &dsc, lv_obj_t *image, const void 
         lv_image_set_scale(image, 256);
     }
 }
-
-

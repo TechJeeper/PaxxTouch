@@ -2,7 +2,7 @@
 #include "moonraker/MoonrakerRest.h"
 
 #ifndef PAXXTOUCH_VERSION
-#define PAXXTOUCH_VERSION "1.0.0"
+#define PAXXTOUCH_VERSION "0.0.1"
 #endif
 
 namespace {
@@ -37,11 +37,24 @@ void MoonrakerClient::resetProgressCache() {
 }
 
 void MoonrakerClient::recomputeProgress() {
+    if (status_.printState == PrintState::Complete) {
+        status_.progress = 100.0f;
+        return;
+    }
+    if (status_.printState == PrintState::Standby || status_.printState == PrintState::Cancelled ||
+        status_.printState == PrintState::Error) {
+        status_.progress = 0.0f;
+        return;
+    }
+
     float p = -1.0f;
     if (cachedDisplayProgress_ >= 0.0f) p = cachedDisplayProgress_;
     else if (cachedVsdProgress_ >= 0.0f) p = cachedVsdProgress_;
     else if (cachedLayerProgress_ >= 0.0f) p = cachedLayerProgress_;
-    if (p >= 0.0f) status_.progress = p * 100.0f;
+    if (p >= 0.0f) {
+        status_.progress = p * 100.0f;
+        if (status_.progress > 100.0f) status_.progress = 100.0f;
+    }
 }
 
 void MoonrakerClient::begin(const char *host, uint16_t port, const char *token, const char *apiKey) {

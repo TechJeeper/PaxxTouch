@@ -295,6 +295,7 @@ void PaxxApp::buildShell() {
     timelapse_.create(this, content_);
     cameraScreen_.create(this, content_);
     files_.create(this, content_);
+    printPrepare_.create(this, content_);
     controls_.create(this, content_);
     terminal_.create(this, content_);
     settings_.create(this, content_);
@@ -323,6 +324,7 @@ void PaxxApp::showScreen(lv_obj_t *screen, const char *tickKind) {
     lv_obj_add_flag(timelapse_.root(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(cameraScreen_.root(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(files_.root(), LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(printPrepare_.root(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(controls_.root(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(terminal_.root(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(settings_.root(), LV_OBJ_FLAG_HIDDEN);
@@ -355,6 +357,10 @@ void PaxxApp::showRemote() { showScreen(remote_.root(), "remote"); }
 void PaxxApp::showTimelapse() { showScreen(timelapse_.root()); }
 void PaxxApp::showCamera() { showScreen(cameraScreen_.root(), "camera"); }
 void PaxxApp::showFiles() { showScreen(files_.root()); }
+void PaxxApp::showPrintPrepare(const char *gcodePath) {
+    printPrepare_.open(gcodePath);
+    showScreen(printPrepare_.root());
+}
 void PaxxApp::showControls() { showScreen(controls_.root()); }
 void PaxxApp::showTerminal() { showScreen(terminal_.root(), "terminal"); }
 void PaxxApp::showSettings() { showScreen(settings_.root()); }

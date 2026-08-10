@@ -16,7 +16,7 @@ public:
     bool getString(const char *path, String &out, int timeoutMs = 8000);
     bool postJson(const char *path, const char *jsonBody, String &out, int timeoutMs = 8000);
     bool postEmpty(const char *path, int timeoutMs = 3000);
-    void postTouchFast(WiFiClient &client, const char *path);
+    bool postTouchFast(WiFiClient &client, const char *path);
     int statusCode() const { return lastCode_; }
 
 private:
