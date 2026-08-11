@@ -132,6 +132,8 @@ void PaxxKeyboard::attach(lv_obj_t *textarea, PaxxKbMode mode) {
     lv_textarea_set_one_line(textarea, true);
     lv_textarea_set_max_length(textarea, 64);
     if (mode == PaxxKbMode::Password) lv_textarea_set_password_mode(textarea, true);
+    lv_obj_set_style_anim_duration(textarea, 0, LV_PART_CURSOR);
+    lv_obj_remove_flag(textarea, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_add_event_cb(textarea, textareaEvent, LV_EVENT_FOCUSED, NULL);
     lv_obj_add_event_cb(textarea, textareaEvent, LV_EVENT_CLICKED, NULL);

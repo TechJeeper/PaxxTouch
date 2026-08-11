@@ -1,6 +1,6 @@
 {
   "name": "PaxxTouch Remote",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "U1 remote screen mirror for BTT K-Touch / PandaTouch — WiFi + printer setup, fullscreen panel mirror with touch",
   "chip": "ESP32-S3",
   "hardware": "BTT K-Touch / PandaTouch (ESP32-S3, 16 MB flash, 8 MB PSRAM)",

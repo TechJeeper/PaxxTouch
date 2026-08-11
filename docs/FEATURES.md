@@ -1,5 +1,10 @@
 # PaxxTouch Feature Status
 
+## v0.1.6 — Color and UI fixes
+
+- Align JPEG decode byte order with PNG (fixes intermittent red/blue swap on remote mirror)
+- UI keyboard and screen refinements
+
 ## v0.1.5 — Theme and screen tweaks
 
 - Theme styling updates and remote/setup screen refinements

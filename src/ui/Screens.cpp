@@ -1578,12 +1578,7 @@ void SetupScreen::toggleAdvanced() {
     }
 }
 
-void SetupScreen::setLoadingVisible(bool visible, const char *text) {
-    paxx_set_loading_visible(loadingArc_, loadingLbl_, visible, text);
-}
-
 void SetupScreen::onEnter() {
-    setLoadingVisible(false);
     updateNavBack();
 #if PAXX_REMOTE_ONLY
     if (advancedPanel_) {
@@ -1611,29 +1606,16 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_set_size(screen_, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_bg_opa(screen_, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(screen_, 0, LV_PART_MAIN);
-    lv_obj_add_flag(screen_, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_scroll_dir(screen_, LV_DIR_VER);
-    lv_obj_set_style_pad_bottom(screen_, 180, LV_PART_MAIN);
+    paxx_style_form_screen(screen_);
 
 #if PAXX_REMOTE_ONLY
     paxx_create_nav_bar(screen_, "Printer Setup", paxx_back_remote_cb, app, app->isDark(), &navBackBtn_);
-
-    loadingArc_ = paxx_create_loading_arc(screen_);
-    loadingLbl_ = lv_label_create(screen_);
-    lv_obj_align(loadingLbl_, LV_ALIGN_CENTER, 0, 32);
-    lv_obj_add_flag(loadingLbl_, LV_OBJ_FLAG_FLOATING);
-    lv_obj_set_width(loadingLbl_, LV_PCT(95));
-    lv_label_set_long_mode(loadingLbl_, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_align(loadingLbl_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_add_flag(loadingLbl_, LV_OBJ_FLAG_HIDDEN);
-    paxx_disable_input(loadingLbl_);
 
     const PrinterProfile &p = activeProfile(app->config());
     int y = 56;
 
     hostTa_ = lv_textarea_create(screen_);
-    lv_obj_set_width(hostTa_, LV_PCT(92));
+    paxx_set_form_width(hostTa_);
     lv_obj_align(hostTa_, LV_ALIGN_TOP_MID, 0, y);
     y += 52;
     lv_textarea_set_one_line(hostTa_, true);
@@ -1642,7 +1624,7 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     PaxxKeyboard::attach(hostTa_, PaxxKbMode::Number);
 
     hintLbl_ = lv_label_create(screen_);
-    lv_obj_set_width(hintLbl_, LV_PCT(92));
+    paxx_set_form_width(hintLbl_);
     lv_obj_align(hintLbl_, LV_ALIGN_TOP_MID, 0, y);
     y += 28;
     lv_label_set_long_mode(hintLbl_, LV_LABEL_LONG_WRAP);
@@ -1654,7 +1636,7 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     }
 
     advancedBtn_ = lv_btn_create(screen_);
-    lv_obj_set_width(advancedBtn_, LV_PCT(92));
+    paxx_set_form_width(advancedBtn_);
     lv_obj_set_height(advancedBtn_, 36);
     lv_obj_align(advancedBtn_, LV_ALIGN_TOP_MID, 0, y);
     y += 44;
@@ -1664,7 +1646,7 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_label_set_text(lv_label_create(advancedBtn_), LV_SYMBOL_SETTINGS " Advanced options");
 
     advancedPanel_ = lv_obj_create(screen_);
-    lv_obj_set_width(advancedPanel_, LV_PCT(92));
+    paxx_set_form_width(advancedPanel_);
     lv_obj_align(advancedPanel_, LV_ALIGN_TOP_MID, 0, y);
     lv_obj_set_style_bg_opa(advancedPanel_, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(advancedPanel_, 0, LV_PART_MAIN);
@@ -1672,10 +1654,14 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_set_flex_flow(advancedPanel_, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(advancedPanel_, 8, LV_PART_MAIN);
     lv_obj_add_flag(advancedPanel_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(advancedPanel_, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(advancedPanel_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_scroll_dir(advancedPanel_, LV_DIR_VER);
+    lv_obj_set_height(advancedPanel_, 160);
 
     auto addAdvField = [&](const char *ph, lv_obj_t **ta, const char *val, PaxxKbMode mode = PaxxKbMode::Text) {
         *ta = lv_textarea_create(advancedPanel_);
-        lv_obj_set_width(*ta, LV_PCT(100));
+        paxx_set_form_width(*ta);
         lv_textarea_set_one_line(*ta, true);
         lv_textarea_set_placeholder_text(*ta, ph);
         if (val && val[0]) lv_textarea_set_text(*ta, val);
@@ -1708,9 +1694,10 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
         prof.useAuth = prof.username[0] != '\0' || prof.apiKey[0] != '\0';
         if (a->config().profileCount <= 0) a->config().profileCount = 1;
         a->saveConfig();
-        a->setup().setLoadingVisible(true, "Connecting to printer…");
+        a->showGlobalLoading(true, "Connecting to printer…");
         a->applyProfile();
         a->showRemote();
+        a->showGlobalLoading(false);
     }, LV_EVENT_CLICKED, app);
     lv_label_set_text(lv_label_create(save), "Save & Connect");
 #else
@@ -1761,29 +1748,6 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
 #endif
 }
 
-void WifiScreen::setLoadingVisible(bool visible, const char *text) {
-    if (loadingShown_ == visible) {
-        if (!visible || !text || !loadingLbl_) return;
-        const char *cur = lv_label_get_text(loadingLbl_);
-        if (cur && strcmp(cur, text) == 0) return;
-    }
-    loadingShown_ = visible;
-    paxx_set_loading_visible(loadingArc_, loadingLbl_, visible, text);
-}
-
-void WifiScreen::onTick() {
-    if (!app_) return;
-    if (scanning_) {
-        setLoadingVisible(true, "Scanning WiFi…");
-        return;
-    }
-    if (app_->wifi().isConnectPending()) {
-        setLoadingVisible(true, "Connecting to WiFi…");
-    } else {
-        setLoadingVisible(false);
-    }
-}
-
 void WifiScreen::updateNavBack() {
 #if PAXX_REMOTE_ONLY
     if (!navBackBtn_) return;
@@ -1803,40 +1767,27 @@ void WifiScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_set_size(screen_, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_bg_opa(screen_, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(screen_, 0, LV_PART_MAIN);
-    lv_obj_add_flag(screen_, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_scroll_dir(screen_, LV_DIR_VER);
-    lv_obj_set_style_pad_bottom(screen_, 180, LV_PART_MAIN);
+    paxx_style_form_screen(screen_);
 #if PAXX_REMOTE_ONLY
     paxx_create_nav_bar(screen_, "WiFi Setup", paxx_back_remote_cb, app, app->isDark(), &navBackBtn_);
 #else
     paxx_create_nav_bar(screen_, "WiFi", paxx_back_home_cb, app, app->isDark(), &navBackBtn_);
 #endif
 
-    loadingArc_ = paxx_create_loading_arc(screen_);
-    loadingLbl_ = lv_label_create(screen_);
-    lv_obj_align(loadingLbl_, LV_ALIGN_CENTER, 0, 32);
-    lv_obj_add_flag(loadingLbl_, LV_OBJ_FLAG_FLOATING);
-    lv_obj_set_width(loadingLbl_, LV_PCT(95));
-    lv_label_set_long_mode(loadingLbl_, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_align(loadingLbl_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_obj_add_flag(loadingLbl_, LV_OBJ_FLAG_HIDDEN);
-    paxx_disable_input(loadingLbl_);
-
     statusLbl_ = lv_label_create(screen_);
-    lv_obj_set_width(statusLbl_, LV_PCT(92));
+    paxx_set_form_width(statusLbl_);
     lv_obj_align(statusLbl_, LV_ALIGN_TOP_MID, 0, 52);
     lv_label_set_long_mode(statusLbl_, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(statusLbl_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     lv_label_set_text(statusLbl_, "Scanning…");
 
     networkList_ = lv_list_create(screen_);
-    lv_obj_set_width(networkList_, LV_PCT(92));
+    paxx_set_form_width(networkList_);
     lv_obj_set_height(networkList_, 130);
     lv_obj_align(networkList_, LV_ALIGN_TOP_MID, 0, 78);
 
     passTa_ = lv_textarea_create(screen_);
-    lv_obj_set_width(passTa_, LV_PCT(92));
+    paxx_set_form_width(passTa_);
     lv_obj_align(passTa_, LV_ALIGN_TOP_MID, 0, 218);
     lv_textarea_set_password_mode(passTa_, true);
     lv_textarea_set_one_line(passTa_, true);
@@ -1844,7 +1795,7 @@ void WifiScreen::create(PaxxApp *app, lv_obj_t *parent) {
     PaxxKeyboard::attach(passTa_, PaxxKbMode::Password);
 
     lv_obj_t *connect = lv_btn_create(screen_);
-    lv_obj_set_width(connect, LV_PCT(92));
+    paxx_set_form_width(connect);
     lv_obj_align(connect, LV_ALIGN_TOP_MID, 0, 272);
     lv_obj_add_event_cb(connect, [](lv_event_t *e) {
         static_cast<PaxxApp *>(lv_event_get_user_data(e))->wifiScreen().connectSelected();
@@ -1852,7 +1803,7 @@ void WifiScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_label_set_text(lv_label_create(connect), "Join Network");
 
     lv_obj_t *rescan = lv_btn_create(screen_);
-    lv_obj_set_width(rescan, LV_PCT(92));
+    paxx_set_form_width(rescan);
     lv_obj_align(rescan, LV_ALIGN_TOP_MID, 0, 318);
     lv_obj_add_event_cb(rescan, [](lv_event_t *e) {
         if (PaxxKeyboard::isVisible()) PaxxKeyboard::hide();
@@ -1861,7 +1812,7 @@ void WifiScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_label_set_text(lv_label_create(rescan), LV_SYMBOL_REFRESH " Scan again");
 
     lv_obj_t *forget = lv_btn_create(screen_);
-    lv_obj_set_width(forget, LV_PCT(92));
+    paxx_set_form_width(forget);
     lv_obj_align(forget, LV_ALIGN_TOP_MID, 0, 364);
     lv_obj_set_style_bg_color(forget, PaxxTheme::danger(), LV_PART_MAIN);
     lv_obj_add_event_cb(forget, [](lv_event_t *e) {
@@ -1872,7 +1823,11 @@ void WifiScreen::create(PaxxApp *app, lv_obj_t *parent) {
 }
 
 void WifiScreen::setStatus(const char *text) {
-    if (statusLbl_) lv_label_set_text(statusLbl_, text ? text : "");
+    if (!statusLbl_) return;
+    const char *msg = text ? text : "";
+    const char *cur = lv_label_get_text(statusLbl_);
+    if (cur && strcmp(cur, msg) == 0) return;
+    lv_label_set_text(statusLbl_, msg);
 }
 
 void WifiScreen::selectNetwork(size_t index) {
@@ -1886,6 +1841,7 @@ void WifiScreen::selectNetwork(size_t index) {
         app_->config().wifi.password[0] = '\0';
         app_->saveConfig();
         setStatus("Connecting…");
+        app_->showGlobalLoading(true, "Connecting to WiFi…");
         app_->wifi().startConnect(net.ssid, "", 15);
         return;
     }
@@ -1909,6 +1865,7 @@ void WifiScreen::connectSelected() {
     strlcpy(app_->config().wifi.password, lv_textarea_get_text(passTa_), sizeof(app_->config().wifi.password));
     app_->saveConfig();
     setStatus("Connecting…");
+    app_->showGlobalLoading(true, "Connecting to WiFi…");
     app_->wifi().startConnect(app_->config().wifi.ssid, app_->config().wifi.password, 15);
 }
 
@@ -1945,13 +1902,13 @@ void WifiScreen::onEnter() {
 void WifiScreen::scanNetworks() {
     Serial.println("[WiFi UI] scan start");
     scanning_ = true;
-    setLoadingVisible(true, "Scanning WiFi…");
+    app_->showGlobalLoading(true, "Scanning WiFi…");
     setStatus("Scanning…");
 
     std::vector<WifiNetwork> nets;
     app_->wifi().scan(nets);
     scanning_ = false;
-    setLoadingVisible(false);
+    app_->showGlobalLoading(false);
 
     auto ensureListed = [&](const char *ssid, int32_t rssi, bool secure) {
         if (!ssid || !ssid[0]) return;

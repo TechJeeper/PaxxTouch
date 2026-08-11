@@ -21,7 +21,7 @@ int gDecodeH = 0;
 void ensureJpegDecoder() {
     if (gJpgInited) return;
     TJpgDec.setJpgScale(1);
-    TJpgDec.setSwapBytes(true);
+    TJpgDec.setSwapBytes(false);
     gJpgInited = true;
 }
 

@@ -140,3 +140,15 @@ void paxx_set_loading_visible(lv_obj_t *arc, lv_obj_t *label, bool visible, cons
         }
     }
 }
+
+void paxx_style_form_screen(lv_obj_t *screen) {
+    if (!screen) return;
+    lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(screen, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_pad_bottom(screen, 0, LV_PART_MAIN);
+}
+
+void paxx_set_form_width(lv_obj_t *obj) {
+    if (!obj) return;
+    lv_obj_set_width(obj, kPaxxFormWidth);
+}

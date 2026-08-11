@@ -269,7 +269,6 @@ class SetupScreen {
 public:
     void create(PaxxApp *app, lv_obj_t *parent);
     void onEnter();
-    void setLoadingVisible(bool visible, const char *text = nullptr);
     lv_obj_t *root() const { return screen_; }
     lv_obj_t *hostInput() const { return hostTa_; }
     lv_obj_t *portInput() const { return portTa_; }
@@ -293,8 +292,6 @@ private:
     lv_obj_t *advancedBtn_ = nullptr;
     lv_obj_t *advancedPanel_ = nullptr;
     lv_obj_t *hintLbl_ = nullptr;
-    lv_obj_t *loadingArc_ = nullptr;
-    lv_obj_t *loadingLbl_ = nullptr;
     bool advancedVisible_ = false;
 };
 
@@ -302,10 +299,10 @@ class WifiScreen {
 public:
     void create(PaxxApp *app, lv_obj_t *parent);
     void onEnter();
-    void onTick();
     void scanNetworks();
     void forgetAllNetworks();
     void setStatus(const char *text);
+    bool isScanning() const { return scanning_; }
     lv_obj_t *passInput() const { return passTa_; }
     lv_obj_t *root() const { return screen_; }
 private:
@@ -313,7 +310,6 @@ private:
     void selectNetwork(size_t index);
     void connectSelected();
     void updateNavBack();
-    void setLoadingVisible(bool visible, const char *text = nullptr);
 
     PaxxApp *app_ = nullptr;
     lv_obj_t *screen_ = nullptr;
@@ -321,12 +317,9 @@ private:
     lv_obj_t *networkList_ = nullptr;
     lv_obj_t *passTa_ = nullptr;
     lv_obj_t *statusLbl_ = nullptr;
-    lv_obj_t *loadingArc_ = nullptr;
-    lv_obj_t *loadingLbl_ = nullptr;
     std::vector<WifiNetwork> networks_;
     int selectedIndex_ = -1;
     bool scanning_ = false;
-    bool loadingShown_ = false;
 };
 
 class PaxxApp {
@@ -364,6 +357,8 @@ public:
     void showSetup();
     void showWifi();
 
+    void showGlobalLoading(bool visible, const char *text = nullptr);
+
     void onStatusUpdate(const PrinterStatus &status);
     void refreshActiveScreen(const PrinterStatus &status);
     lv_obj_t *createMenuButton(lv_obj_t *parent, const char *icon, const char *label, lv_event_cb_t cb);
@@ -398,6 +393,9 @@ private:
     lv_obj_t *content_ = nullptr;
     lv_obj_t *gearBtn_ = nullptr;
     lv_obj_t *gearMenu_ = nullptr;
+    lv_obj_t *globalLoadingOverlay_ = nullptr;
+    lv_obj_t *globalLoadingArc_ = nullptr;
+    lv_obj_t *globalLoadingLbl_ = nullptr;
     lv_obj_t *activeScreen_ = nullptr;
 
     static void onKeyboardVisibility(bool visible, void *userData);

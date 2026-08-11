@@ -25,8 +25,11 @@ void PaxxApp::begin() {
     });
 #endif
     wifi_.setStatusCallback([this](bool connected, const char *message) {
-        if (activeScreen_ == wifiScreen_.root() && message && message[0]) {
-            wifiScreen_.setStatus(message);
+        if (activeScreen_ == wifiScreen_.root()) {
+            if (message && message[0]) wifiScreen_.setStatus(message);
+            if (!wifi_.isConnectPending() && !wifiScreen_.isScanning()) {
+                showGlobalLoading(false);
+            }
         }
         if (connected) {
             wifiLostAtMs_ = 0;
@@ -223,7 +226,6 @@ void PaxxApp::loop() {
         else if (strcmp(activeTickKind_, "terminal") == 0) terminal_.onTick();
 #endif
     }
-    if (activeScreen_ == wifiScreen_.root()) wifiScreen_.onTick();
 }
 
 lv_obj_t *PaxxApp::createMenuButton(lv_obj_t *parent, const char *icon, const char *label, lv_event_cb_t cb) {
@@ -251,6 +253,18 @@ lv_obj_t *PaxxApp::createMenuButton(lv_obj_t *parent, const char *icon, const ch
 
 void PaxxApp::hideGearMenu() {
     if (gearMenu_) lv_obj_add_flag(gearMenu_, LV_OBJ_FLAG_HIDDEN);
+}
+
+void PaxxApp::showGlobalLoading(bool visible, const char *text) {
+    if (!globalLoadingOverlay_) return;
+    paxx_set_loading_visible(globalLoadingArc_, globalLoadingLbl_, visible, text);
+    if (visible) {
+        lv_obj_clear_flag(globalLoadingOverlay_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(globalLoadingOverlay_);
+        if (gearBtn_) lv_obj_move_foreground(gearBtn_);
+    } else {
+        lv_obj_add_flag(globalLoadingOverlay_, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 void PaxxApp::onKeyboardVisibility(bool visible, void *userData) {
@@ -393,6 +407,24 @@ void PaxxApp::buildShell() {
 #endif
 
     lv_scr_load(shell_);
+
+    globalLoadingOverlay_ = lv_obj_create(shell_);
+    lv_obj_set_size(globalLoadingOverlay_, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_bg_color(globalLoadingOverlay_, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(globalLoadingOverlay_, LV_OPA_30, LV_PART_MAIN);
+    lv_obj_set_style_border_width(globalLoadingOverlay_, 0, LV_PART_MAIN);
+    lv_obj_add_flag(globalLoadingOverlay_, LV_OBJ_FLAG_FLOATING);
+    lv_obj_add_flag(globalLoadingOverlay_, LV_OBJ_FLAG_HIDDEN);
+    paxx_disable_input(globalLoadingOverlay_);
+    globalLoadingArc_ = paxx_create_loading_arc(globalLoadingOverlay_);
+    globalLoadingLbl_ = lv_label_create(globalLoadingOverlay_);
+    lv_obj_align(globalLoadingLbl_, LV_ALIGN_CENTER, 0, 32);
+    lv_obj_set_width(globalLoadingLbl_, kPaxxFormWidth);
+    lv_label_set_long_mode(globalLoadingLbl_, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(globalLoadingLbl_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_add_flag(globalLoadingLbl_, LV_OBJ_FLAG_HIDDEN);
+    paxx_disable_input(globalLoadingLbl_);
+
     PaxxKeyboard::init(shell_);
     PaxxKeyboard::setVisibilityListener(onKeyboardVisibility, this);
     buildGearMenu();
