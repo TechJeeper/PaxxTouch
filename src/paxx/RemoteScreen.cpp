@@ -127,18 +127,16 @@ void RemoteScreenClient::begin(const char *host, bool useAuth, const char *user,
 
 
     if (!fetchBuf_) fetchBuf_ = allocBuffer(kBufferSize);
+    if (!readyBuf_) readyBuf_ = allocBuffer(kBufferSize);
     if (!decodeBuf_) decodeBuf_ = allocBuffer(kBufferSize);
     if (!displayBuf_) displayBuf_ = allocDisplayBuffer();
-    if (!fetchBuf_ || !decodeBuf_ || !displayBuf_) {
+    if (!fetchBuf_ || !readyBuf_ || !decodeBuf_ || !displayBuf_) {
         Serial.println("[Remote] FATAL: buffer alloc failed");
     }
 
-
-
     if (!fetchMutex_) fetchMutex_ = xSemaphoreCreateMutex();
-
+    if (!readyMutex_) readyMutex_ = xSemaphoreCreateMutex();
     if (!frameMutex_) frameMutex_ = xSemaphoreCreateMutex();
-
 }
 
 
@@ -228,7 +226,7 @@ void RemoteScreenClient::setViewActive(bool active) {
 
         snapshotPolls_ = 0;
 
-        pendingDecodeLen_ = 0;
+        readyDecodeLen_ = 0;
 
         frameDirty_ = false;
 
@@ -327,55 +325,35 @@ void RemoteScreenClient::touchWorker(void *arg) {
 
 
         if (pt.action == RemoteTouchAction::Down || pt.action == RemoteTouchAction::Up) {
-
+            self->fastPollUntilMs_ = millis() + 1500;
+            self->snapshotEtag_[0] = '\0';
             sendTouchHttp(self, pt);
-
             if (self->viewActive_) self->pumpSnapshot();
-
             continue;
-
         }
-
-
 
         TouchPoint move = pt;
-
         for (;;) {
-
             TouchPoint next{};
-
             if (xQueueReceive(self->touchQueue_, &next, pdMS_TO_TICKS(8)) != pdTRUE) break;
-
             if (next.action == RemoteTouchAction::Down) {
-
                 xQueueSendToFront(self->touchQueue_, &next, 0);
-
                 break;
-
             }
-
             if (next.action == RemoteTouchAction::Up) {
-
+                self->fastPollUntilMs_ = millis() + 1500;
+                self->snapshotEtag_[0] = '\0';
                 sendTouchHttp(self, move);
-
                 sendTouchHttp(self, next);
-
                 if (self->viewActive_) self->pumpSnapshot();
-
                 goto next_batch;
-
             }
-
             move = next;
-
         }
-
+        self->fastPollUntilMs_ = millis() + 1500;
         sendTouchHttp(self, move);
-
     next_batch:;
-
     }
-
 }
 
 
@@ -407,27 +385,16 @@ SnapshotFetchStatus RemoteScreenClient::pollSnapshot(int &outLen) {
 
 
 void RemoteScreenClient::signalDecode(int len) {
+    if (len <= 0 || !fetchBuf_ || !readyBuf_ || !readyMutex_) return;
 
-    if (len <= 0 || !decodeBuf_ || !fetchBuf_) return;
-
-
-
-    xSemaphoreTake(fetchMutex_, portMAX_DELAY);
-
+    xSemaphoreTake(readyMutex_, portMAX_DELAY);
     uint8_t *tmp = fetchBuf_;
-
-    fetchBuf_ = decodeBuf_;
-
-    decodeBuf_ = tmp;
-
-    pendingDecodeLen_ = len;
-
-    xSemaphoreGive(fetchMutex_);
-
-
+    fetchBuf_ = readyBuf_;
+    readyBuf_ = tmp;
+    readyDecodeLen_ = len;
+    xSemaphoreGive(readyMutex_);
 
     if (decodeTask_) xTaskNotifyGive(decodeTask_);
-
 }
 
 
@@ -513,125 +480,78 @@ void RemoteScreenClient::publishDisplayFrame() {
 
 
 void RemoteScreenClient::decodeWorker(void *arg) {
-
     auto *self = static_cast<RemoteScreenClient *>(arg);
 
-
-
     for (;;) {
-
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
         if (!self->viewActive_) continue;
 
-
-
-        while (self->pendingDecodeLen_ > 0) {
-
-            const int len = self->pendingDecodeLen_;
-
-            self->pendingDecodeLen_ = 0;
-
-
-
-            if (self->decodeFromDecodeBuffer(len)) {
-
-                self->snapshotError_[0] = '\0';
-
-                self->publishDisplayFrame();
-
+        int len = 0;
+        if (self->readyMutex_ && xSemaphoreTake(self->readyMutex_, pdMS_TO_TICKS(100)) == pdTRUE) {
+            len = self->readyDecodeLen_;
+            if (len > 0) {
+                uint8_t *tmp = self->readyBuf_;
+                self->readyBuf_ = self->decodeBuf_;
+                self->decodeBuf_ = tmp;
+                self->readyDecodeLen_ = 0;
             }
-
+            xSemaphoreGive(self->readyMutex_);
         }
 
+        if (len > 0) {
+            if (self->decodeFromDecodeBuffer(len)) {
+                self->snapshotError_[0] = '\0';
+                self->publishDisplayFrame();
+            }
+        }
     }
-
 }
 
-
-
 void RemoteScreenClient::pollWorker(void *arg) {
-
     auto *self = static_cast<RemoteScreenClient *>(arg);
 
-
-
     for (;;) {
-
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-
-
 
         Serial.println("[Remote] poll loop started (HTTP keep-alive, pipelined decode)");
 
-
-
         while (self->viewActive_ && self->enabled_ && self->fetchBuf_) {
-
             const uint32_t t0 = millis();
-
             int len = 0;
-
             const SnapshotFetchStatus st = self->pollSnapshot(len);
 
-
-
             if (st == SnapshotFetchStatus::NotModified) {
-
                 self->notModifiedPolls_++;
-
                 self->snapshotPolls_++;
-
             } else if (st == SnapshotFetchStatus::Ok && len > 0) {
-
                 self->notModifiedPolls_ = 0;
-
                 self->snapshotPolls_++;
-
                 self->signalDecode(len);
-
             } else if (st == SnapshotFetchStatus::Error) {
-
                 if (self->http_.statusCode() != 304 && self->http_.statusCode() != 204) {
-
                     snprintf(self->snapshotError_, sizeof(self->snapshotError_),
-
                              "Snapshot HTTP %d", self->http_.statusCode());
-
                 }
-
                 self->snapshotClient_.stop();
-
                 vTaskDelay(pdMS_TO_TICKS(50));
-
             }
-
-
 
             if ((self->snapshotPolls_ % 50) == 0 && self->snapshotPolls_ > 0) {
-
                 Serial.printf("[Remote] poll #%u http=%d len=%d 304s=%u (%lums)\n",
-
                               self->snapshotPolls_, self->http_.statusCode(), len,
-
                               self->notModifiedPolls_, static_cast<unsigned long>(millis() - t0));
-
             }
 
-
-
-            const unsigned long interval = self->refreshIntervalMs_ > 0 ? self->refreshIntervalMs_ : 100;
+            const bool fastMode = (millis() < self->fastPollUntilMs_);
+            const unsigned long defaultInterval = self->refreshIntervalMs_ > 0 ? self->refreshIntervalMs_ : 100;
+            const unsigned long interval = fastMode ? 20UL : defaultInterval;
 
             const uint32_t elapsed = millis() - t0;
-
             if (elapsed < interval) {
                 ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(interval - elapsed));
             }
-
         }
-
     }
-
 }
 
 

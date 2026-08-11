@@ -199,20 +199,19 @@ private:
 
 
     SemaphoreHandle_t fetchMutex_ = nullptr;
-
+    SemaphoreHandle_t readyMutex_ = nullptr;
     SemaphoreHandle_t frameMutex_ = nullptr;
-
-
 
     static constexpr size_t kBufferSize = 256 * 1024;
 
     uint8_t *fetchBuf_ = nullptr;
-
+    uint8_t *readyBuf_ = nullptr;
     uint8_t *decodeBuf_ = nullptr;
 
     uint16_t *displayBuf_ = nullptr;
 
-    volatile int pendingDecodeLen_ = 0;
+    volatile int readyDecodeLen_ = 0;
+    volatile unsigned long fastPollUntilMs_ = 0;
 
     volatile bool frameDirty_ = false;
 

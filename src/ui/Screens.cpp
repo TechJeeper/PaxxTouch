@@ -839,39 +839,31 @@ void RemoteScreenView::onTick() {
     int w = 0;
     int h = 0;
     const unsigned long now = millis();
-    const bool touchActive = sinceTouch < 500;
-#if PAXX_REMOTE_ONLY
-    const unsigned long blitInterval = touchActive ? 16UL : 33UL;
-#else
-    const unsigned long blitInterval = touchActive ? 16UL : 66UL;
-#endif
-    if (lastBlitMs_ == 0 || now - lastBlitMs_ >= blitInterval) {
-        if (app_->remoteScreen().pollFrame(buf, format, w, h) && buf) {
-            const bool layoutChanged = (frameBuf_ == nullptr) || frameW_ != w || frameH_ != h;
-            lastBlitMs_ = now;
-            frameBuf_ = buf;
-            frameFormat_ = format;
-            frameW_ = w;
-            frameH_ = h;
-            hideTouchSpinner();
-            if (layoutChanged) {
-                ImageDecoder::bindLvImage(imageDsc_, image_, frameBuf_, frameFormat_, w, h,
-                                          lv_obj_get_width(canvasArea_), lv_obj_get_height(canvasArea_));
-            } else {
-                imageDsc_.data = frameBuf_;
-                lv_image_set_src(image_, &imageDsc_);
-                lv_obj_invalidate(image_);
-            }
-            lv_obj_move_foreground(image_);
-            if (touchSpinner_ && !lv_obj_has_flag(touchSpinner_, LV_OBJ_FLAG_HIDDEN)) {
-                lv_obj_move_foreground(touchSpinner_);
-            }
-            setLoadingVisible(false);
-            lastFetchMs_ = now;
-            failCount_ = 0;
-            serviceAvailable_ = true;
-            return;
+    if (app_->remoteScreen().pollFrame(buf, format, w, h) && buf) {
+        const bool layoutChanged = (frameBuf_ == nullptr) || frameW_ != w || frameH_ != h;
+        lastBlitMs_ = now;
+        frameBuf_ = buf;
+        frameFormat_ = format;
+        frameW_ = w;
+        frameH_ = h;
+        hideTouchSpinner();
+        if (layoutChanged) {
+            ImageDecoder::bindLvImage(imageDsc_, image_, frameBuf_, frameFormat_, w, h,
+                                      lv_obj_get_width(canvasArea_), lv_obj_get_height(canvasArea_));
+        } else {
+            imageDsc_.data = frameBuf_;
+            lv_image_set_src(image_, &imageDsc_);
+            lv_obj_invalidate(image_);
         }
+        lv_obj_move_foreground(image_);
+        if (touchSpinner_ && !lv_obj_has_flag(touchSpinner_, LV_OBJ_FLAG_HIDDEN)) {
+            lv_obj_move_foreground(touchSpinner_);
+        }
+        setLoadingVisible(false);
+        lastFetchMs_ = now;
+        failCount_ = 0;
+        serviceAvailable_ = true;
+        return;
     }
 
     if (probe == RemoteProbeState::Failed) {

@@ -1,5 +1,13 @@
 # PaxxTouch Feature Status
 
+## v0.1.9 — Remote Screen responsiveness and lag fix
+
+- Triple Buffering pipeline (eliminates frame corruption and decode failures during fast polling)
+- Non-blocking fire-and-forget touch POSTs (reduces touch dispatch latency from 80ms to 1-2ms)
+- Post-touch burst polling at 20ms intervals for 1.5s following touch actions
+- Correct ETag / `If-None-Match` header formatting for Nginx and Python `fb-http-server`
+- Immediate UI blitting of decoded frames on main loop tick
+
 ## v0.1.8 — Display flush color fix
 
 - Fix display flush to swap R/B into a line buffer without mutating LVGL draw memory (fixes intermittent wrong colors on full-frame mode)

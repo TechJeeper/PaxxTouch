@@ -32,11 +32,11 @@ void storeEtagHeader(const char *headerValue, char *outEtag, size_t outEtagLen) 
 
     const char *p = headerValue;
     while (*p == ' ' || *p == '\t') ++p;
-    if (*p == '"') ++p;
     size_t i = 0;
-    while (*p && *p != '"' && i + 1 < outEtagLen) {
+    while (*p && *p != '\r' && *p != '\n' && i + 1 < outEtagLen) {
         outEtag[i++] = *p++;
     }
+    while (i > 0 && (outEtag[i - 1] == ' ' || outEtag[i - 1] == '\t')) --i;
     outEtag[i] = '\0';
 }
 
@@ -151,7 +151,7 @@ bool HttpClient::postTouchSend(WiFiClient &client, const char *path, bool waitRe
     }
     client.flush();
 
-    const uint32_t deadline = millis() + (waitResponse ? 300u : 80u);
+    const uint32_t deadline = millis() + (waitResponse ? 300u : 5u);
     char statusLine[32] = {};
     size_t idx = 0;
     while (idx < sizeof(statusLine) - 1 && static_cast<int32_t>(deadline - millis()) > 0) {
@@ -164,6 +164,11 @@ bool HttpClient::postTouchSend(WiFiClient &client, const char *path, bool waitRe
         delay(1);
     }
 headers:
+    if (!waitResponse && idx == 0) {
+        lastCode_ = 200;
+        return true;
+    }
+
     int httpCode = 0;
     if (strncmp(statusLine, "HTTP/1.", 7) == 0) {
         const char *sp = strchr(statusLine + 7, ' ');
@@ -217,9 +222,15 @@ SnapshotFetchStatus HttpClient::fetchSnapshot(const char *path, uint8_t *buffer,
     client.print(String("Host: ") + host_ + "\r\n");
     writeAuthHeaders(client);
     if (ifNoneMatch && ifNoneMatch[0]) {
-        client.print("If-None-Match: \"");
-        client.print(ifNoneMatch);
-        client.print("\"\r\n");
+        if (ifNoneMatch[0] == '"' || strncmp(ifNoneMatch, "W/", 2) == 0) {
+            client.print("If-None-Match: ");
+            client.print(ifNoneMatch);
+            client.print("\r\n");
+        } else {
+            client.print("If-None-Match: \"");
+            client.print(ifNoneMatch);
+            client.print("\"\r\n");
+        }
     }
     if (reuseConnection) {
         client.print("Connection: keep-alive\r\n\r\n");
