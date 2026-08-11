@@ -11,9 +11,27 @@
 #include <esp_heap_caps.h>
 #include <lvgl.h>
 #include <Arduino_GFX_Library.h>
+#include <TJpg_Decoder.h>
 #include "TAMC_GT911.h"
 #include "pt_board.h"
 #include "boot_logo.h"
+
+/** K-Touch / PandaTouch RGB565 panel expects BGR channel order in each pixel word. */
+inline uint16_t pt_rgb565_swap_rb(uint16_t c) {
+  return static_cast<uint16_t>((c & 0x07E0) | ((c & 0x001F) << 11) | ((c & 0xF800) >> 11));
+}
+
+extern Arduino_RGB_Display pt_gfx;
+
+static bool pt_boot_jpg_draw(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t *bitmap) {
+  static uint16_t block_buf[800 * 16];
+  const uint32_t count = static_cast<uint32_t>(w) * h;
+  for (uint32_t i = 0; i < count; ++i) {
+    block_buf[i] = pt_rgb565_swap_rb(bitmap[i]);
+  }
+  pt_gfx.draw16bitRGBBitmap(x, y, block_buf, w, h);
+  return true;
+}
 
 #ifndef PT_LVGL_RENDER_PARTIAL_LINES
 #define PT_LVGL_RENDER_PARTIAL_LINES 80
@@ -54,8 +72,6 @@ extern TAMC_GT911 pt_touchpanel;
 #if defined(ESP_ARDUINO_VERSION_MAJOR)
 extern Arduino_ESP32RGBPanel pt_rgbpanel;
 #endif
-
-extern Arduino_RGB_Display pt_gfx;
 
 /* =========================
  *  State / LVGL Buffers
@@ -181,11 +197,6 @@ static void pt_init_backlight(uint8_t set_percent)
  *  LVGL Callbacks
  * ========================= */
 
-/** K-Touch / PandaTouch RGB565 panel expects BGR channel order in each pixel word. */
-inline uint16_t pt_rgb565_swap_rb(uint16_t c) {
-  return static_cast<uint16_t>((c & 0x07E0) | ((c & 0x001F) << 11) | ((c & 0xF800) >> 11));
-}
-
 /**
  * @brief Flushes the display buffer to the screen.
  *
@@ -292,7 +303,9 @@ inline void pt_setup_display(PT_LVGL_render_method_t mode = (PT_LVGL_render_meth
 
   // Panel bring-up
   pt_gfx.begin();
-  pt_gfx.draw16bitRGBBitmap(0, 0, const_cast<uint16_t *>(boot_logo_rgb565), 800, 480);
+  TJpgDec.setCallback(pt_boot_jpg_draw);
+  TJpgDec.setJpgScale(1);
+  TJpgDec.drawJpg(0, 0, boot_logo_jpg, sizeof(boot_logo_jpg));
 
   // Touch
   pt_touchpanel.begin(GT911_ADDR1);
