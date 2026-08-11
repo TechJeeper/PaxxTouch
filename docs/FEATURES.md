@@ -1,5 +1,10 @@
 # PaxxTouch Feature Status
 
+## v0.2.2 — Display Jitter & Color Phase Fix
+
+- Align PCLK active edge sampling to rising edge (`pclk_active_neg = 0`), eliminating RGB setup/hold timing violations that caused blue buttons to turn green and screen jitter while idle
+- Calibrate PCLK frequency to 12.0 MHz and optimize sync pulse widths
+
 ## v0.2.1 — ST7701S Hardware Shift Fix & Boot Screen
 
 - ST7701S RGB panel HSYNC / VSYNC timing calibration (eliminates horizontal left/right display shifting under PSRAM & WiFi load)

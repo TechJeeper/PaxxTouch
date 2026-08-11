@@ -196,14 +196,14 @@ void RemoteScreenClient::ensureWorkers() {
     }
 
     if (!pollTask_) {
-        if (xTaskCreatePinnedToCore(pollWorker, "remotePoll", 8192, this, 7, &pollTask_, 0) != pdPASS) {
+        if (xTaskCreatePinnedToCore(pollWorker, "remotePoll", 6144, this, 7, &pollTask_, 0) != pdPASS) {
             Serial.println("[Remote] poll task create failed");
             pollTask_ = nullptr;
         }
     }
     if (!decodeTask_) {
         ImageDecoder::initWorker();
-        if (xTaskCreatePinnedToCore(decodeWorker, "remoteDec", 8192, this, 6, &decodeTask_, 1) != pdPASS) {
+        if (xTaskCreatePinnedToCore(decodeWorker, "remoteDec", 6144, this, 6, &decodeTask_, 1) != pdPASS) {
             Serial.println("[Remote] decode task create failed");
             decodeTask_ = nullptr;
         }
@@ -678,7 +678,7 @@ void RemoteScreenClient::resetProbe() {
     Serial.printf("[Remote] probe start %s\n", host_);
 
     if (probeTask_ == nullptr) {
-        if (xTaskCreate(probeWorker, "remoteProbe", 12288, this, 5, &probeTask_) != pdPASS) {
+        if (xTaskCreate(probeWorker, "remoteProbe", 5120, this, 5, &probeTask_) != pdPASS) {
             Serial.println("[Remote] probe task create failed");
             probeTask_ = nullptr;
             probeState_ = RemoteProbeState::Failed;

@@ -24,7 +24,11 @@ inline uint16_t pt_rgb565_swap_rb(uint16_t c) {
 extern Arduino_RGB_Display pt_gfx;
 
 static bool pt_boot_jpg_draw(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t *bitmap) {
-  static uint16_t block_buf[800 * 16];
+  static uint16_t *block_buf = nullptr;
+  if (!block_buf) {
+    block_buf = static_cast<uint16_t *>(heap_caps_malloc(800 * 16 * sizeof(uint16_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  }
+  if (!block_buf) return false;
   const uint32_t count = static_cast<uint32_t>(w) * h;
   for (uint32_t i = 0; i < count; ++i) {
     block_buf[i] = pt_rgb565_swap_rb(bitmap[i]);
@@ -226,11 +230,11 @@ inline void pt_disp_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px
   const uint16_t *src_base = reinterpret_cast<const uint16_t *>(px_map) +
                              (is_full_mode ? (static_cast<uint32_t>(y1) * screen_w + static_cast<uint32_t>(x1)) : 0);
 
-  // Chunked R/B channel swapping block buffer (up to 64 lines at once).
-  static uint16_t block_buf[PT_LCD_H_RES * 64];
+  // Chunked R/B channel swapping block buffer (up to 16 lines at once).
+  static uint16_t block_buf[PT_LCD_H_RES * 16];
 
-  for (uint32_t row_offset = 0; row_offset < h; row_offset += 64) {
-    const uint32_t chunk_h = (h - row_offset < 64) ? (h - row_offset) : 64;
+  for (uint32_t row_offset = 0; row_offset < h; row_offset += 16) {
+    const uint32_t chunk_h = (h - row_offset < 16) ? (h - row_offset) : 16;
     for (uint32_t r = 0; r < chunk_h; ++r) {
       const uint16_t *src_row = src_base + (row_offset + r) * stride;
       uint16_t *dst_row = block_buf + r * w;
