@@ -13,13 +13,14 @@
 #include <Arduino_GFX_Library.h>
 #include "TAMC_GT911.h"
 #include "pt_board.h"
+#include "boot_logo.h"
 
 #ifndef PT_LVGL_RENDER_PARTIAL_LINES
 #define PT_LVGL_RENDER_PARTIAL_LINES 80
 #endif
 
 #ifndef PT_LCD_RENDER_BOUNCE_LINES
-#define PT_LCD_RENDER_BOUNCE_LINES 10
+#define PT_LCD_RENDER_BOUNCE_LINES 20
 #endif
 
 /* =========================
@@ -289,7 +290,7 @@ inline void pt_setup_display(PT_LVGL_render_method_t mode = (PT_LVGL_render_meth
 
   // Panel bring-up
   pt_gfx.begin();
-  pt_gfx.fillScreen(0x000000); // Hardware test (black)
+  pt_gfx.draw16bitRGBBitmap(0, 0, boot_logo_rgb565, 800, 480);
 
   // Touch
   pt_touchpanel.begin(GT911_ADDR1);

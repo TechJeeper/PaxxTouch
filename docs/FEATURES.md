@@ -1,5 +1,11 @@
 # PaxxTouch Feature Status
 
+## v0.2.1 — ST7701S Hardware Shift Fix & Boot Screen
+
+- ST7701S RGB panel HSYNC / VSYNC timing calibration (eliminates horizontal left/right display shifting under PSRAM & WiFi load)
+- Increased SRAM bounce buffer cushion (20 lines) to prevent LCD DMA FIFO underflow
+- Instant 800x480 boot splash screen generated from `@boot.bmp`
+
 ## v0.2.0 — Config UI Glitch Fix & Performance Update
 
 - Chunked block blitting for display flushes (eliminates mid-frame tearing and UI glitching during typing, text cursor blinking, and WiFi status updates)
