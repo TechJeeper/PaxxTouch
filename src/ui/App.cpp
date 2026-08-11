@@ -37,6 +37,9 @@ void PaxxApp::begin() {
                 remoteScreen_.resetProbe();
             }
 #endif
+            if (!PaxxPreferences::instance().hasPrinter() && activeScreen_ == wifiScreen_.root()) {
+                showSetup();
+            }
         } else if (!wifi_.isConnectPending()) {
             wifiLostAtMs_ = millis();
         }
@@ -443,6 +446,7 @@ void PaxxApp::showScreen(lv_obj_t *screen, const char *tickKind) {
     else if (screen == filament_.root()) filament_.onEnter();
 #endif
     else if (screen == wifiScreen_.root()) wifiScreen_.onEnter();
+    else if (screen == setup_.root()) setup_.onEnter();
 
 #ifndef PAXX_REMOTE_ONLY
     refreshActiveScreen(moonraker_.status());

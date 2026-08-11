@@ -1562,6 +1562,52 @@ void SettingsScreen::create(PaxxApp *app, lv_obj_t *parent) {
 #endif
 }
 
+void SetupScreen::updateNavBack() {
+#if PAXX_REMOTE_ONLY
+    if (!navBackBtn_) return;
+    if (PaxxPreferences::instance().hasPrinter()) {
+        lv_obj_clear_flag(navBackBtn_, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(navBackBtn_, LV_OBJ_FLAG_HIDDEN);
+    }
+#endif
+}
+
+void SetupScreen::toggleAdvanced() {
+    if (!advancedPanel_ || !advancedBtn_) return;
+    advancedVisible_ = !advancedVisible_;
+    if (advancedVisible_) {
+        lv_obj_clear_flag(advancedPanel_, LV_OBJ_FLAG_HIDDEN);
+        lv_label_set_text(lv_obj_get_child(advancedBtn_, 0), LV_SYMBOL_DOWN " Hide advanced");
+    } else {
+        lv_obj_add_flag(advancedPanel_, LV_OBJ_FLAG_HIDDEN);
+        lv_label_set_text(lv_obj_get_child(advancedBtn_, 0), LV_SYMBOL_SETTINGS " Advanced options");
+    }
+}
+
+void SetupScreen::onEnter() {
+    updateNavBack();
+#if PAXX_REMOTE_ONLY
+    if (advancedPanel_) {
+        advancedVisible_ = false;
+        lv_obj_add_flag(advancedPanel_, LV_OBJ_FLAG_HIDDEN);
+        if (advancedBtn_) {
+            lv_label_set_text(lv_obj_get_child(advancedBtn_, 0), LV_SYMBOL_SETTINGS " Advanced options");
+        }
+    }
+    if (hostTa_) {
+        PaxxKeyboard::promptFor(hostTa_);
+        lv_obj_scroll_to_view(hostTa_, LV_ANIM_OFF);
+    }
+    if (hintLbl_) {
+        char urlHint[96];
+        const char *host = app_ ? lv_textarea_get_text(hostTa_) : "";
+        paxxFormatScreenUrl(host && host[0] ? host : nullptr, urlHint, sizeof(urlHint));
+        lv_label_set_text(hintLbl_, urlHint);
+    }
+#endif
+}
+
 void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     app_ = app;
     screen_ = lv_obj_create(parent);
@@ -1571,6 +1617,94 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_add_flag(screen_, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_AUTO);
     lv_obj_set_style_pad_bottom(screen_, 220, LV_PART_MAIN);
+
+#if PAXX_REMOTE_ONLY
+    paxx_create_nav_bar(screen_, "Printer Setup", paxx_back_remote_cb, app, app->isDark(), &navBackBtn_);
+
+    const PrinterProfile &p = activeProfile(app->config());
+    int y = 56;
+
+    hostTa_ = lv_textarea_create(screen_);
+    lv_obj_set_width(hostTa_, LV_PCT(92));
+    lv_obj_align(hostTa_, LV_ALIGN_TOP_MID, 0, y);
+    y += 52;
+    lv_textarea_set_one_line(hostTa_, true);
+    lv_textarea_set_placeholder_text(hostTa_, "Printer IP address (e.g. 192.168.1.100)");
+    if (p.host[0]) lv_textarea_set_text(hostTa_, p.host);
+    PaxxKeyboard::attach(hostTa_, false);
+
+    hintLbl_ = lv_label_create(screen_);
+    lv_obj_set_width(hintLbl_, LV_PCT(92));
+    lv_obj_align(hintLbl_, LV_ALIGN_TOP_MID, 0, y);
+    y += 28;
+    lv_label_set_long_mode(hintLbl_, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_color(hintLbl_, PaxxTheme::muted(app->isDark()), LV_PART_MAIN);
+    {
+        char urlHint[96];
+        paxxFormatScreenUrl(p.host[0] ? p.host : nullptr, urlHint, sizeof(urlHint));
+        lv_label_set_text(hintLbl_, urlHint);
+    }
+
+    advancedBtn_ = lv_btn_create(screen_);
+    lv_obj_set_width(advancedBtn_, LV_PCT(92));
+    lv_obj_set_height(advancedBtn_, 36);
+    lv_obj_align(advancedBtn_, LV_ALIGN_TOP_MID, 0, y);
+    y += 44;
+    lv_obj_add_event_cb(advancedBtn_, [](lv_event_t *e) {
+        static_cast<SetupScreen *>(lv_event_get_user_data(e))->toggleAdvanced();
+    }, LV_EVENT_CLICKED, this);
+    lv_label_set_text(lv_label_create(advancedBtn_), LV_SYMBOL_SETTINGS " Advanced options");
+
+    advancedPanel_ = lv_obj_create(screen_);
+    lv_obj_set_width(advancedPanel_, LV_PCT(92));
+    lv_obj_align(advancedPanel_, LV_ALIGN_TOP_MID, 0, y);
+    lv_obj_set_style_bg_opa(advancedPanel_, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(advancedPanel_, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(advancedPanel_, 0, LV_PART_MAIN);
+    lv_obj_set_flex_flow(advancedPanel_, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(advancedPanel_, 8, LV_PART_MAIN);
+    lv_obj_add_flag(advancedPanel_, LV_OBJ_FLAG_HIDDEN);
+
+    auto addAdvField = [&](const char *ph, lv_obj_t **ta, const char *val, bool password = false) {
+        *ta = lv_textarea_create(advancedPanel_);
+        lv_obj_set_width(*ta, LV_PCT(100));
+        lv_textarea_set_one_line(*ta, true);
+        lv_textarea_set_placeholder_text(*ta, ph);
+        if (val && val[0]) lv_textarea_set_text(*ta, val);
+        PaxxKeyboard::attach(*ta, password);
+    };
+
+    addAdvField("Moonraker port (7125)", &portTa_, String(p.moonrakerPort ? p.moonrakerPort : 7125).c_str());
+    addAdvField("API key (optional)", &keyTa_, p.apiKey);
+    addAdvField("Username (optional)", &userTa_, p.username);
+    addAdvField("Password (optional)", &passTa_, p.password, true);
+    nameTa_ = nullptr;
+
+    lv_obj_t *save = lv_btn_create(screen_);
+    lv_obj_align(save, LV_ALIGN_BOTTOM_MID, 0, -12);
+    lv_obj_add_event_cb(save, [](lv_event_t *e) {
+        auto *a = static_cast<PaxxApp *>(lv_event_get_user_data(e));
+        PrinterProfile &prof = activeProfile(a->config());
+        const char *host = lv_textarea_get_text(a->setup().hostInput());
+        if (!host || !host[0]) {
+            PaxxNotify::show("Printer", "Enter printer IP address");
+            return;
+        }
+        strlcpy(prof.name, "Printer", sizeof(prof.name));
+        strlcpy(prof.host, host, sizeof(prof.host));
+        prof.moonrakerPort = static_cast<uint16_t>(atoi(lv_textarea_get_text(a->setup().portInput())));
+        if (prof.moonrakerPort == 0) prof.moonrakerPort = 7125;
+        strlcpy(prof.apiKey, lv_textarea_get_text(a->setup().keyInput()), sizeof(prof.apiKey));
+        strlcpy(prof.username, lv_textarea_get_text(a->setup().userInput()), sizeof(prof.username));
+        strlcpy(prof.password, lv_textarea_get_text(a->setup().passInput()), sizeof(prof.password));
+        prof.useAuth = prof.username[0] != '\0' || prof.apiKey[0] != '\0';
+        if (a->config().profileCount <= 0) a->config().profileCount = 1;
+        a->saveConfig();
+        a->applyProfile();
+        a->showRemote();
+    }, LV_EVENT_CLICKED, app);
+    lv_label_set_text(lv_label_create(save), "Save & Connect");
+#else
     paxx_create_nav_bar(screen_, "Printer", paxx_back_home_cb, app, app->isDark());
 
     const PrinterProfile &p = activeProfile(app->config());
@@ -1592,16 +1726,6 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     addField("Username (optional)", &userTa_, p.username);
     addField("Password (optional)", &passTa_, p.password, true);
 
-#if PAXX_REMOTE_ONLY
-    lv_obj_t *hint = lv_label_create(screen_);
-    lv_obj_set_width(hint, LV_PCT(92));
-    lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, y + 4);
-    lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
-    char urlHint[96];
-    paxxFormatScreenUrl(p.host, urlHint, sizeof(urlHint));
-    lv_label_set_text(hint, urlHint);
-#endif
-
     lv_obj_t *save = lv_btn_create(screen_);
     lv_obj_align(save, LV_ALIGN_BOTTOM_MID, 0, -12);
     lv_obj_add_event_cb(save, [](lv_event_t *e) {
@@ -1618,13 +1742,27 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
         if (a->config().profileCount <= 0) a->config().profileCount = 1;
         a->saveConfig();
         a->applyProfile();
-#if PAXX_REMOTE_ONLY
-        a->showRemote();
-#else
         a->showHome();
-#endif
     }, LV_EVENT_CLICKED, app);
     lv_label_set_text(lv_label_create(save), "Save & Connect");
+    advancedBtn_ = nullptr;
+    advancedPanel_ = nullptr;
+    hintLbl_ = nullptr;
+    navBackBtn_ = nullptr;
+#endif
+}
+
+void WifiScreen::updateNavBack() {
+#if PAXX_REMOTE_ONLY
+    if (!navBackBtn_) return;
+    if (PaxxPreferences::instance().hasPrinter()) {
+        lv_obj_clear_flag(navBackBtn_, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(navBackBtn_, LV_OBJ_FLAG_HIDDEN);
+    }
+#else
+    if (navBackBtn_) lv_obj_clear_flag(navBackBtn_, LV_OBJ_FLAG_HIDDEN);
+#endif
 }
 
 void WifiScreen::create(PaxxApp *app, lv_obj_t *parent) {
@@ -1636,92 +1774,99 @@ void WifiScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_add_flag(screen_, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_AUTO);
     lv_obj_set_style_pad_bottom(screen_, 220, LV_PART_MAIN);
-    paxx_create_nav_bar(screen_, "WiFi", paxx_back_home_cb, app, app->isDark());
+#if PAXX_REMOTE_ONLY
+    paxx_create_nav_bar(screen_, "WiFi Setup", paxx_back_remote_cb, app, app->isDark(), &navBackBtn_);
+#else
+    paxx_create_nav_bar(screen_, "WiFi", paxx_back_home_cb, app, app->isDark(), &navBackBtn_);
+#endif
 
-    networkRoller_ = lv_roller_create(screen_);
-    lv_obj_set_width(networkRoller_, LV_PCT(92));
-    lv_obj_set_height(networkRoller_, 100);
-    lv_obj_align(networkRoller_, LV_ALIGN_TOP_MID, 0, 56);
-    lv_roller_set_options(networkRoller_, networkOptions_, LV_ROLLER_MODE_NORMAL);
-    lv_roller_set_visible_row_count(networkRoller_, 3);
-    lv_obj_add_event_cb(networkRoller_, [](lv_event_t *e) {
-        const lv_event_code_t code = lv_event_get_code(e);
-        if (code != LV_EVENT_VALUE_CHANGED && code != LV_EVENT_RELEASED) return;
-        static_cast<WifiScreen *>(lv_event_get_user_data(e))->promptPasswordForSelection();
-    }, LV_EVENT_ALL, this);
+    statusLbl_ = lv_label_create(screen_);
+    lv_obj_set_width(statusLbl_, LV_PCT(92));
+    lv_obj_align(statusLbl_, LV_ALIGN_TOP_MID, 0, 52);
+    lv_label_set_long_mode(statusLbl_, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(statusLbl_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_label_set_text(statusLbl_, "Scanning…");
+
+    networkList_ = lv_list_create(screen_);
+    lv_obj_set_width(networkList_, LV_PCT(92));
+    lv_obj_set_height(networkList_, 130);
+    lv_obj_align(networkList_, LV_ALIGN_TOP_MID, 0, 78);
+
+    passTa_ = lv_textarea_create(screen_);
+    lv_obj_set_width(passTa_, LV_PCT(92));
+    lv_obj_align(passTa_, LV_ALIGN_TOP_MID, 0, 218);
+    lv_textarea_set_password_mode(passTa_, true);
+    lv_textarea_set_one_line(passTa_, true);
+    lv_textarea_set_placeholder_text(passTa_, "WiFi password");
+    PaxxKeyboard::attach(passTa_, true);
+
+    lv_obj_t *connect = lv_btn_create(screen_);
+    lv_obj_set_width(connect, LV_PCT(92));
+    lv_obj_align(connect, LV_ALIGN_TOP_MID, 0, 272);
+    lv_obj_add_event_cb(connect, [](lv_event_t *e) {
+        static_cast<PaxxApp *>(lv_event_get_user_data(e))->wifiScreen().connectSelected();
+    }, LV_EVENT_CLICKED, app);
+    lv_label_set_text(lv_label_create(connect), "Join Network");
+
+    lv_obj_t *rescan = lv_btn_create(screen_);
+    lv_obj_set_width(rescan, LV_PCT(92));
+    lv_obj_align(rescan, LV_ALIGN_TOP_MID, 0, 318);
+    lv_obj_add_event_cb(rescan, [](lv_event_t *e) {
+        if (PaxxKeyboard::isVisible()) PaxxKeyboard::hide();
+        static_cast<PaxxApp *>(lv_event_get_user_data(e))->wifiScreen().scanNetworks();
+    }, LV_EVENT_CLICKED, app);
+    lv_label_set_text(lv_label_create(rescan), LV_SYMBOL_REFRESH " Scan again");
 
     lv_obj_t *forget = lv_btn_create(screen_);
-    lv_obj_set_size(forget, LV_PCT(92), 36);
-    lv_obj_align(forget, LV_ALIGN_TOP_MID, 0, 162);
+    lv_obj_set_width(forget, LV_PCT(92));
+    lv_obj_align(forget, LV_ALIGN_TOP_MID, 0, 364);
     lv_obj_set_style_bg_color(forget, PaxxTheme::danger(), LV_PART_MAIN);
     lv_obj_add_event_cb(forget, [](lv_event_t *e) {
         PaxxKeyboard::hide();
         static_cast<PaxxApp *>(lv_event_get_user_data(e))->wifiScreen().forgetAllNetworks();
     }, LV_EVENT_CLICKED, app);
     lv_label_set_text(lv_label_create(forget), "Forget All Networks");
-
-    passTa_ = lv_textarea_create(screen_);
-    lv_obj_set_width(passTa_, LV_PCT(92));
-    lv_obj_align(passTa_, LV_ALIGN_TOP_MID, 0, 204);
-    lv_textarea_set_placeholder_text(passTa_, "WiFi password");
-    PaxxKeyboard::attach(passTa_, true);
-
-    lv_obj_t *scan = lv_btn_create(screen_);
-    lv_obj_align(scan, LV_ALIGN_TOP_MID, 0, 264);
-    lv_obj_add_event_cb(scan, [](lv_event_t *e) {
-        if (PaxxKeyboard::isVisible()) PaxxKeyboard::hide();
-        static_cast<PaxxApp *>(lv_event_get_user_data(e))->wifiScreen().scanNetworks();
-    }, LV_EVENT_CLICKED, app);
-    lv_label_set_text(lv_label_create(scan), "Scan Networks");
-
-    lv_obj_t *connect = lv_btn_create(screen_);
-    lv_obj_align(connect, LV_ALIGN_TOP_MID, 0, 320);
-    lv_obj_add_event_cb(connect, [](lv_event_t *e) {
-        PaxxKeyboard::hide();
-        auto *a = static_cast<PaxxApp *>(lv_event_get_user_data(e));
-        Serial.println("[WiFi UI] Connect clicked");
-        char ssid[33];
-        lv_roller_get_selected_str(a->wifiScreen().networkRoller(), ssid, sizeof(ssid));
-        if (!a->wifiScreen().isSelectableNetwork(ssid)) {
-            a->wifiScreen().setStatus("Scan and pick a network first");
-            return;
-        }
-        Serial.printf("[WiFi UI] selected ssid=\"%s\"\n", ssid);
-        strlcpy(a->config().wifi.ssid, ssid, sizeof(a->config().wifi.ssid));
-        strlcpy(a->config().wifi.password, lv_textarea_get_text(a->wifiScreen().passInput()), sizeof(a->config().wifi.password));
-        a->saveConfig();
-        a->wifiScreen().setStatus("Connecting...");
-        a->wifi().startConnect(a->config().wifi.ssid, a->config().wifi.password, 15);
-    }, LV_EVENT_CLICKED, app);
-    lv_label_set_text(lv_label_create(connect), "Connect");
-
-    statusLbl_ = lv_label_create(screen_);
-    lv_obj_align(statusLbl_, LV_ALIGN_TOP_MID, 0, 376);
-    lv_label_set_text(statusLbl_, WiFi.isConnected() ? WiFi.localIP().toString().c_str() : "Not connected");
 }
 
 void WifiScreen::setStatus(const char *text) {
     if (statusLbl_) lv_label_set_text(statusLbl_, text ? text : "");
 }
 
-bool WifiScreen::isSelectableNetwork(const char *ssid) const {
-    if (!ssid || !ssid[0]) return false;
-    if (ssid[0] == '(') return false;
-    if (strcmp(ssid, "Tap Scan Networks") == 0) return false;
-    return true;
-}
+void WifiScreen::selectNetwork(size_t index) {
+    if (index >= networks_.size()) return;
+    selectedIndex_ = static_cast<int>(index);
+    const WifiNetwork &net = networks_[index];
 
-void WifiScreen::promptPasswordForSelection() {
-    char ssid[33];
-    lv_roller_get_selected_str(networkRoller_, ssid, sizeof(ssid));
-    if (!isSelectableNetwork(ssid)) return;
+    if (!net.secure) {
+        PaxxKeyboard::hide();
+        strlcpy(app_->config().wifi.ssid, net.ssid, sizeof(app_->config().wifi.ssid));
+        app_->config().wifi.password[0] = '\0';
+        app_->saveConfig();
+        setStatus("Connecting…");
+        app_->wifi().startConnect(net.ssid, "", 15);
+        return;
+    }
 
     lv_textarea_set_text(passTa_, "");
     char hint[48];
-    snprintf(hint, sizeof(hint), "Password for %s", ssid);
+    snprintf(hint, sizeof(hint), "Password for %s", net.ssid);
     lv_textarea_set_placeholder_text(passTa_, hint);
-    setStatus("Enter password, then tap Connect");
+    setStatus("Enter password, then tap Join Network");
     PaxxKeyboard::promptFor(passTa_);
+}
+
+void WifiScreen::connectSelected() {
+    if (selectedIndex_ < 0 || static_cast<size_t>(selectedIndex_) >= networks_.size()) {
+        setStatus("Tap a network first");
+        return;
+    }
+    const WifiNetwork &net = networks_[static_cast<size_t>(selectedIndex_)];
+    PaxxKeyboard::hide();
+    strlcpy(app_->config().wifi.ssid, net.ssid, sizeof(app_->config().wifi.ssid));
+    strlcpy(app_->config().wifi.password, lv_textarea_get_text(passTa_), sizeof(app_->config().wifi.password));
+    app_->saveConfig();
+    setStatus("Connecting…");
+    app_->wifi().startConnect(app_->config().wifi.ssid, app_->config().wifi.password, 15);
 }
 
 void WifiScreen::forgetAllNetworks() {
@@ -1731,30 +1876,31 @@ void WifiScreen::forgetAllNetworks() {
     app_->saveConfig();
     app_->wifi().forgetAll();
 
+    selectedIndex_ = -1;
+    networks_.clear();
+    lv_obj_clean(networkList_);
     lv_textarea_set_text(passTa_, "");
     lv_textarea_set_placeholder_text(passTa_, "WiFi password");
-    strlcpy(networkOptions_, "Tap Scan Networks", sizeof(networkOptions_));
-    lv_roller_set_options(networkRoller_, networkOptions_, LV_ROLLER_MODE_NORMAL);
-
-    setStatus("All networks forgotten — scan to pick one");
+    setStatus("Networks cleared — scanning…");
+    scanNetworks();
     PaxxNotify::show("WiFi", "Saved networks cleared");
 }
 
 void WifiScreen::onEnter() {
+    updateNavBack();
+    selectedIndex_ = -1;
+    lv_textarea_set_text(passTa_, "");
+    lv_textarea_set_placeholder_text(passTa_, "WiFi password");
     if (WiFi.isConnected()) {
         setStatus(WiFi.localIP().toString().c_str());
     } else {
-        setStatus("Not connected");
+        setStatus("Scanning…");
     }
-    lv_textarea_set_text(passTa_, "");
-    if (app_->config().wifi.ssid[0] && isSelectableNetwork(app_->config().wifi.ssid)) {
-        strlcpy(networkOptions_, app_->config().wifi.ssid, sizeof(networkOptions_));
-        lv_roller_set_options(networkRoller_, networkOptions_, LV_ROLLER_MODE_NORMAL);
-    }
+    scanNetworks();
 }
 
 void WifiScreen::scanNetworks() {
-    Serial.println("[WiFi UI] Scan Networks clicked");
+    Serial.println("[WiFi UI] scan start");
     setStatus("Scanning…");
 
     std::vector<WifiNetwork> nets;
@@ -1770,7 +1916,6 @@ void WifiScreen::scanNetworks() {
         net.rssi = rssi;
         net.secure = secure;
         nets.push_back(net);
-        Serial.printf("[WiFi UI] added saved/current ssid=\"%s\"\n", ssid);
     };
 
     ensureListed(app_->config().wifi.ssid, -55, true);
@@ -1796,28 +1941,37 @@ void WifiScreen::applyNetworkList(const std::vector<WifiNetwork> &nets) {
         if (!found) filtered.push_back(net);
     }
 
-    Serial.printf("[WiFi UI] populating roller with %u unique network(s)\n",
-                  static_cast<unsigned>(filtered.size()));
+    networks_ = filtered;
+    selectedIndex_ = -1;
+    lv_obj_clean(networkList_);
+
+    Serial.printf("[WiFi UI] populating list with %u network(s)\n", static_cast<unsigned>(filtered.size()));
 
     if (filtered.empty()) {
-        strlcpy(networkOptions_, "(no networks found)", sizeof(networkOptions_));
-        lv_roller_set_options(networkRoller_, networkOptions_, LV_ROLLER_MODE_NORMAL);
-        setStatus("No networks found — check serial log");
+        lv_list_add_text(networkList_, "No networks found");
+        setStatus("No networks found — tap Scan again");
         lv_refr_now(NULL);
         return;
     }
 
-    networkOptions_[0] = '\0';
     for (size_t i = 0; i < filtered.size(); ++i) {
-        if (i) strlcat(networkOptions_, "\n", sizeof(networkOptions_));
-        strlcat(networkOptions_, filtered[i].ssid, sizeof(networkOptions_));
+        char label[64];
+        snprintf(label, sizeof(label), "%s%s  (%d dBm)",
+                 filtered[i].secure ? LV_SYMBOL_EYE_CLOSE " " : "",
+                 filtered[i].ssid, filtered[i].rssi);
+        lv_obj_t *btn = lv_list_add_button(networkList_, LV_SYMBOL_WIFI, label);
+        lv_obj_set_user_data(btn, reinterpret_cast<void *>(static_cast<intptr_t>(i)));
+        lv_obj_add_event_cb(btn, [](lv_event_t *e) {
+            auto *self = static_cast<WifiScreen *>(lv_event_get_user_data(e));
+            auto *target = static_cast<lv_obj_t *>(lv_event_get_target(e));
+            const size_t idx =
+                static_cast<size_t>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(target)));
+            self->selectNetwork(idx);
+        }, LV_EVENT_CLICKED, this);
     }
 
-    lv_roller_set_options(networkRoller_, networkOptions_, LV_ROLLER_MODE_NORMAL);
-    lv_roller_set_selected(networkRoller_, 0, LV_ANIM_OFF);
-
     char status[56];
-    snprintf(status, sizeof(status), "Found %u — scroll to pick", static_cast<unsigned>(filtered.size()));
+    snprintf(status, sizeof(status), "Found %u — tap a network", static_cast<unsigned>(filtered.size()));
     setStatus(status);
     lv_refr_now(NULL);
 }

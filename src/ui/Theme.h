@@ -15,6 +15,7 @@ namespace PaxxTheme {
     void apply(bool dark = true);
 }
 
-lv_obj_t *paxx_create_nav_bar(lv_obj_t *parent, const char *title, lv_event_cb_t backCb, void *userData, bool dark = true);
+lv_obj_t *paxx_create_nav_bar(lv_obj_t *parent, const char *title, lv_event_cb_t backCb, void *userData,
+                              bool dark = true, lv_obj_t **outBackBtn = nullptr);
 lv_obj_t *paxx_create_status_chip(lv_obj_t *parent, const char *label, lv_color_t color);
 void paxx_disable_input(lv_obj_t *obj);

@@ -18,7 +18,8 @@ void PaxxTheme::apply(bool dark) {
     lv_obj_set_style_text_color(scr, text(dark), LV_PART_MAIN);
 }
 
-lv_obj_t *paxx_create_nav_bar(lv_obj_t *parent, const char *title, lv_event_cb_t backCb, void *userData, bool dark) {
+lv_obj_t *paxx_create_nav_bar(lv_obj_t *parent, const char *title, lv_event_cb_t backCb, void *userData, bool dark,
+                              lv_obj_t **outBackBtn) {
     lv_obj_t *bar = lv_obj_create(parent);
     lv_obj_set_size(bar, LV_PCT(100), 48);
     lv_obj_align(bar, LV_ALIGN_TOP_MID, 0, 0);
@@ -35,6 +36,9 @@ lv_obj_t *paxx_create_nav_bar(lv_obj_t *parent, const char *title, lv_event_cb_t
         lv_obj_t *lbl = lv_label_create(back);
         lv_label_set_text(lbl, LV_SYMBOL_LEFT " Back");
         lv_obj_center(lbl);
+        if (outBackBtn) *outBackBtn = back;
+    } else if (outBackBtn) {
+        *outBackBtn = nullptr;
     }
 
     lv_obj_t *ttl = lv_label_create(bar);

@@ -1,5 +1,10 @@
 # PaxxTouch Feature Status
 
+## v0.1.1 — Web flasher fix
+
+- Web flasher preserves PlatformIO bootloader flash headers (fixes blank screen after successful web flash)
+- Bundled firmware synced with `pio` build
+
 ## v0.1.0 — PaxxTouch Remote (shipped)
 
 Default build: `paxxtouch-remote`

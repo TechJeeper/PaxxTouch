@@ -63,10 +63,12 @@ void PaxxKeyboard::showFor(lv_obj_t *textarea) {
 void PaxxKeyboard::hide() {
     if (!kb_ || lv_obj_has_flag(kb_, LV_OBJ_FLAG_HIDDEN)) return;
 
-    lv_async_call_cancel(asyncScrollCb, activeTa_);
+    lv_obj_t *ta = activeTa_;
+    lv_async_call_cancel(asyncScrollCb, ta);
     lv_keyboard_set_textarea(kb_, NULL);
     lv_obj_add_flag(kb_, LV_OBJ_FLAG_HIDDEN);
     activeTa_ = nullptr;
+    if (ta) lv_obj_clear_state(ta, LV_STATE_FOCUSED);
     notifyVisibility(false);
 }
 
@@ -82,7 +84,7 @@ void PaxxKeyboard::textareaEvent(lv_event_t *e) {
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t *ta = static_cast<lv_obj_t *>(lv_event_get_target(e));
 
-    if (code == LV_EVENT_FOCUSED) {
+    if (code == LV_EVENT_FOCUSED || code == LV_EVENT_CLICKED) {
         showFor(ta);
     } else if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
         hide();
@@ -104,6 +106,7 @@ void PaxxKeyboard::attach(lv_obj_t *textarea, bool password) {
     if (password) lv_textarea_set_password_mode(textarea, true);
 
     lv_obj_add_event_cb(textarea, textareaEvent, LV_EVENT_FOCUSED, NULL);
+    lv_obj_add_event_cb(textarea, textareaEvent, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(textarea, textareaEvent, LV_EVENT_READY, NULL);
     lv_obj_add_event_cb(textarea, textareaEvent, LV_EVENT_CANCEL, NULL);
 }

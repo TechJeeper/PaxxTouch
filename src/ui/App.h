@@ -267,6 +267,7 @@ private:
 class SetupScreen {
 public:
     void create(PaxxApp *app, lv_obj_t *parent);
+    void onEnter();
     lv_obj_t *root() const { return screen_; }
     lv_obj_t *hostInput() const { return hostTa_; }
     lv_obj_t *portInput() const { return portTa_; }
@@ -275,14 +276,22 @@ public:
     lv_obj_t *keyInput() const { return keyTa_; }
     lv_obj_t *nameInput() const { return nameTa_; }
 private:
+    void updateNavBack();
+    void toggleAdvanced();
+
     PaxxApp *app_ = nullptr;
     lv_obj_t *screen_ = nullptr;
+    lv_obj_t *navBackBtn_ = nullptr;
     lv_obj_t *hostTa_ = nullptr;
     lv_obj_t *portTa_ = nullptr;
     lv_obj_t *userTa_ = nullptr;
     lv_obj_t *passTa_ = nullptr;
     lv_obj_t *keyTa_ = nullptr;
     lv_obj_t *nameTa_ = nullptr;
+    lv_obj_t *advancedBtn_ = nullptr;
+    lv_obj_t *advancedPanel_ = nullptr;
+    lv_obj_t *hintLbl_ = nullptr;
+    bool advancedVisible_ = false;
 };
 
 class WifiScreen {
@@ -292,20 +301,22 @@ public:
     void scanNetworks();
     void forgetAllNetworks();
     void setStatus(const char *text);
-    bool isSelectableNetwork(const char *ssid) const;
-    lv_obj_t *networkRoller() const { return networkRoller_; }
     lv_obj_t *passInput() const { return passTa_; }
     lv_obj_t *root() const { return screen_; }
 private:
     void applyNetworkList(const std::vector<WifiNetwork> &nets);
-    void promptPasswordForSelection();
+    void selectNetwork(size_t index);
+    void connectSelected();
+    void updateNavBack();
 
     PaxxApp *app_ = nullptr;
     lv_obj_t *screen_ = nullptr;
-    lv_obj_t *networkRoller_ = nullptr;
+    lv_obj_t *navBackBtn_ = nullptr;
+    lv_obj_t *networkList_ = nullptr;
     lv_obj_t *passTa_ = nullptr;
     lv_obj_t *statusLbl_ = nullptr;
-    char networkOptions_[1024] = "Tap Scan Networks";
+    std::vector<WifiNetwork> networks_;
+    int selectedIndex_ = -1;
 };
 
 class PaxxApp {

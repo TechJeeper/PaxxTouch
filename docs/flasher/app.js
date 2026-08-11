@@ -1,6 +1,6 @@
 import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.6.1/+esm";
 
-const FLASHER_VERSION = 6;
+const FLASHER_VERSION = 7;
 
 const $ = (id) => document.getElementById(id);
 
