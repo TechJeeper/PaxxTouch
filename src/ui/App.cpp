@@ -257,19 +257,6 @@ void PaxxApp::onKeyboardVisibility(bool visible, void *userData) {
     auto *app = static_cast<PaxxApp *>(userData);
     if (!app) return;
 
-    lv_obj_t *formScreen = nullptr;
-    if (app->activeScreen_ == app->wifiScreen_.root() || app->activeScreen_ == app->setup_.root()) {
-        formScreen = app->activeScreen_;
-    }
-
-    if (formScreen) {
-        if (visible) {
-            lv_obj_clear_flag(formScreen, LV_OBJ_FLAG_SCROLLABLE);
-        } else {
-            lv_obj_add_flag(formScreen, LV_OBJ_FLAG_SCROLLABLE);
-        }
-    }
-
     if (visible) {
         app->hideGearMenu();
         if (app->gearBtn_) lv_obj_add_flag(app->gearBtn_, LV_OBJ_FLAG_HIDDEN);

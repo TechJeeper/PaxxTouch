@@ -1,5 +1,9 @@
 # PaxxTouch Feature Status
 
+## v0.1.5 — Theme and screen tweaks
+
+- Theme styling updates and remote/setup screen refinements
+
 ## v0.1.4 — UI polish
 
 - Theme, keyboard, and setup/remote screen layout improvements

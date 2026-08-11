@@ -1612,7 +1612,8 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_set_style_bg_opa(screen_, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(screen_, 0, LV_PART_MAIN);
     lv_obj_add_flag(screen_, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_scroll_dir(screen_, LV_DIR_VER);
     lv_obj_set_style_pad_bottom(screen_, 180, LV_PART_MAIN);
 
 #if PAXX_REMOTE_ONLY
@@ -1621,6 +1622,7 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     loadingArc_ = paxx_create_loading_arc(screen_);
     loadingLbl_ = lv_label_create(screen_);
     lv_obj_align(loadingLbl_, LV_ALIGN_CENTER, 0, 32);
+    lv_obj_add_flag(loadingLbl_, LV_OBJ_FLAG_FLOATING);
     lv_obj_set_width(loadingLbl_, LV_PCT(95));
     lv_label_set_long_mode(loadingLbl_, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(loadingLbl_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
@@ -1760,6 +1762,12 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
 }
 
 void WifiScreen::setLoadingVisible(bool visible, const char *text) {
+    if (loadingShown_ == visible) {
+        if (!visible || !text || !loadingLbl_) return;
+        const char *cur = lv_label_get_text(loadingLbl_);
+        if (cur && strcmp(cur, text) == 0) return;
+    }
+    loadingShown_ = visible;
     paxx_set_loading_visible(loadingArc_, loadingLbl_, visible, text);
 }
 
@@ -1796,7 +1804,8 @@ void WifiScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_set_style_bg_opa(screen_, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(screen_, 0, LV_PART_MAIN);
     lv_obj_add_flag(screen_, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_AUTO);
+    lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_scroll_dir(screen_, LV_DIR_VER);
     lv_obj_set_style_pad_bottom(screen_, 180, LV_PART_MAIN);
 #if PAXX_REMOTE_ONLY
     paxx_create_nav_bar(screen_, "WiFi Setup", paxx_back_remote_cb, app, app->isDark(), &navBackBtn_);
@@ -1807,6 +1816,7 @@ void WifiScreen::create(PaxxApp *app, lv_obj_t *parent) {
     loadingArc_ = paxx_create_loading_arc(screen_);
     loadingLbl_ = lv_label_create(screen_);
     lv_obj_align(loadingLbl_, LV_ALIGN_CENTER, 0, 32);
+    lv_obj_add_flag(loadingLbl_, LV_OBJ_FLAG_FLOATING);
     lv_obj_set_width(loadingLbl_, LV_PCT(95));
     lv_label_set_long_mode(loadingLbl_, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(loadingLbl_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);

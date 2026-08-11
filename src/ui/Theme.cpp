@@ -1,5 +1,7 @@
 #include "ui/Theme.h"
 
+#include <string.h>
+
 void paxx_disable_input(lv_obj_t *obj) {
     if (!obj) return;
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_CLICKABLE);
@@ -67,10 +69,29 @@ void paxx_spinner_anim(void *obj, int32_t v) {
     lv_arc_set_end_angle(static_cast<lv_obj_t *>(obj), static_cast<int>(v));
 }
 
+static void paxx_spinner_start(lv_obj_t *arc) {
+    if (!arc || lv_anim_get(arc, paxx_spinner_anim)) return;
+
+    lv_anim_t anim;
+    lv_anim_init(&anim);
+    lv_anim_set_var(&anim, arc);
+    lv_anim_set_exec_cb(&anim, paxx_spinner_anim);
+    lv_anim_set_values(&anim, 30, 390);
+    lv_anim_set_time(&anim, 900);
+    lv_anim_set_repeat_count(&anim, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_start(&anim);
+}
+
+static void paxx_spinner_stop(lv_obj_t *arc) {
+    if (!arc) return;
+    lv_anim_delete(arc, paxx_spinner_anim);
+}
+
 lv_obj_t *paxx_create_loading_arc(lv_obj_t *parent) {
     lv_obj_t *arc = lv_arc_create(parent);
     lv_obj_set_size(arc, 52, 52);
     lv_obj_align(arc, LV_ALIGN_CENTER, 0, -24);
+    lv_obj_add_flag(arc, LV_OBJ_FLAG_FLOATING);
     lv_arc_set_rotation(arc, 270);
     lv_arc_set_bg_angles(arc, 0, 360);
     lv_arc_set_angles(arc, 0, 90);
@@ -82,34 +103,39 @@ lv_obj_t *paxx_create_loading_arc(lv_obj_t *parent) {
     lv_obj_remove_flag(arc, LV_OBJ_FLAG_CLICKABLE);
     paxx_disable_input(arc);
     lv_obj_add_flag(arc, LV_OBJ_FLAG_HIDDEN);
-
-    lv_anim_t anim;
-    lv_anim_init(&anim);
-    lv_anim_set_var(&anim, arc);
-    lv_anim_set_exec_cb(&anim, paxx_spinner_anim);
-    lv_anim_set_values(&anim, 30, 390);
-    lv_anim_set_time(&anim, 900);
-    lv_anim_set_repeat_count(&anim, LV_ANIM_REPEAT_INFINITE);
-    lv_anim_start(&anim);
     return arc;
 }
 
 void paxx_set_loading_visible(lv_obj_t *arc, lv_obj_t *label, bool visible, const char *text) {
     if (arc) {
+        const bool wasHidden = lv_obj_has_flag(arc, LV_OBJ_FLAG_HIDDEN);
         if (visible) {
-            lv_obj_clear_flag(arc, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_move_foreground(arc);
-        } else {
+            if (wasHidden) {
+                lv_obj_clear_flag(arc, LV_OBJ_FLAG_HIDDEN);
+                paxx_spinner_start(arc);
+                lv_obj_move_foreground(arc);
+            }
+        } else if (!wasHidden) {
+            paxx_spinner_stop(arc);
             lv_obj_add_flag(arc, LV_OBJ_FLAG_HIDDEN);
         }
     }
     if (label) {
         const bool showText = visible && text && text[0];
-        lv_label_set_text(label, showText ? text : "");
+        const bool wasHidden = lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN);
         if (showText) {
-            lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_move_foreground(label);
-        } else if (!visible) {
+            const char *cur = lv_label_get_text(label);
+            if (!cur || strcmp(cur, text) != 0) {
+                lv_label_set_text(label, text);
+            }
+            if (wasHidden) {
+                lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_move_foreground(label);
+            }
+        } else if (!wasHidden || !visible) {
+            if (lv_label_get_text(label)[0] != '\0') {
+                lv_label_set_text(label, "");
+            }
             lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
         }
     }

@@ -326,6 +326,7 @@ private:
     std::vector<WifiNetwork> networks_;
     int selectedIndex_ = -1;
     bool scanning_ = false;
+    bool loadingShown_ = false;
 };
 
 class PaxxApp {
