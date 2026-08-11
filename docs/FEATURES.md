@@ -1,5 +1,9 @@
 # PaxxTouch Feature Status
 
+## v0.1.8 — Display flush color fix
+
+- Fix display flush to swap R/B into a line buffer without mutating LVGL draw memory (fixes intermittent wrong colors on full-frame mode)
+
 ## v0.1.7 — LVGL 9 timer API and UI refresh
 
 - Use `lv_timer_handler()` (LVGL 9) instead of deprecated `lv_task_handler()`

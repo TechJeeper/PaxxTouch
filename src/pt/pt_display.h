@@ -197,14 +197,30 @@ inline uint16_t pt_rgb565_swap_rb(uint16_t c) {
  */
 inline void pt_disp_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
-  uint32_t w = lv_area_get_width(area);
-  uint32_t h = lv_area_get_height(area);
-  uint16_t *map = reinterpret_cast<uint16_t *>(px_map);
-  const uint32_t count = w * h;
-  for (uint32_t i = 0; i < count; ++i) {
-    map[i] = pt_rgb565_swap_rb(map[i]);
+  const int32_t x1 = area->x1;
+  const int32_t y1 = area->y1;
+  const uint32_t w = lv_area_get_width(area);
+  const uint32_t h = lv_area_get_height(area);
+  if (w == 0 || h == 0 || w > PT_LCD_H_RES) {
+    lv_disp_flush_ready(disp);
+    return;
   }
-  pt_gfx.draw16bitRGBBitmap(area->x1, area->y1, map, w, h);
+
+  // Swap into a line buffer so we never mutate the LVGL draw buffer in place.
+  static uint16_t line_buf[PT_LCD_H_RES];
+
+  // PaxxTouch boots with PT_LVGL_RENDER_FULL_1: px_map is the full framebuffer.
+  const uint32_t screen_w = lv_display_get_horizontal_resolution(disp);
+  const uint16_t *src_base = reinterpret_cast<uint16_t *>(px_map) +
+                               static_cast<uint32_t>(y1) * screen_w + static_cast<uint32_t>(x1);
+
+  for (uint32_t row = 0; row < h; ++row) {
+    const uint16_t *src_row = src_base + row * screen_w;
+    for (uint32_t col = 0; col < w; ++col) {
+      line_buf[col] = pt_rgb565_swap_rb(src_row[col]);
+    }
+    pt_gfx.draw16bitRGBBitmap(x1, y1 + static_cast<int32_t>(row), line_buf, w, 1);
+  }
 
   lv_disp_flush_ready(disp);
 }
