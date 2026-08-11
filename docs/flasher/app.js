@@ -1,6 +1,6 @@
 import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.6.1/+esm";
 
-const FLASHER_VERSION = 4;
+const FLASHER_VERSION = 5;
 
 const $ = (id) => document.getElementById(id);
 
@@ -104,20 +104,10 @@ function readFirmwareBlob(buf, name) {
   return new Uint8Array(buf);
 }
 
-/** esptool-js writeFlash expects Latin-1 binary strings (not Uint8Array) in browser builds. */
-function uint8ToBinaryString(bytes) {
-  const CHUNK = 8192;
-  const parts = [];
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    const slice = bytes.subarray(i, i + CHUNK);
-    parts.push(String.fromCharCode.apply(null, slice));
-  }
-  return parts.join("");
-}
-
+/** Pass Uint8Array to esptool-js 0.6.x (native binary support). */
 function toFlashFileArray(entries) {
   return entries.map(({ data, address }) => ({
-    data: data instanceof Uint8Array ? uint8ToBinaryString(data) : data,
+    data: data instanceof Uint8Array ? data : new Uint8Array(data),
     address,
   }));
 }
@@ -262,12 +252,16 @@ async function flashDevice() {
     if (!fileArray.length) throw new Error("No firmware files to flash.");
 
     const flash = state.manifest.flash;
+    const eraseAll = $("optEraseAll")?.checked ?? flash.eraseAll !== false;
+    const compress = flash.compress === true;
+    if (eraseAll) log("Full chip erase enabled (recommended after a failed flash).");
+    if (!compress) log("Uncompressed flash (more reliable over CH340 USB).");
     setStatus("Flashing… do not unplug the USB cable.");
 
     await state.esploader.writeFlash({
       fileArray,
-      eraseAll: false,
-      compress: true,
+      eraseAll,
+      compress,
       flashMode: flash.mode,
       flashFreq: flash.freq,
       flashSize: flash.size,

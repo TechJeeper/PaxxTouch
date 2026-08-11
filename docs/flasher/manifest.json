@@ -11,9 +11,11 @@
   "flash": {
     "mode": "qio",
     "freq": "80m",
-    "size": "16MB"
+    "size": "16MB",
+    "compress": false,
+    "eraseAll": true
   },
-  "baudRate": 460800,
+  "baudRate": 115200,
   "firmwareLocal": {
     "base": "./firmware/"
   },

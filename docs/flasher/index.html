@@ -63,6 +63,13 @@
         <div style="text-align:center;margin-top:4px;font-size:0.85rem;color:var(--muted)" id="progressLabel"></div>
       </div>
 
+      <div class="row" style="margin-top:12px;flex-direction:column;align-items:flex-start;gap:8px">
+        <label><input type="checkbox" id="optEraseAll" checked> Erase entire flash before writing (recommended)</label>
+        <p style="color:var(--muted);font-size:0.85rem;margin:0">
+          Uses 115200 baud and uncompressed writes for CH340 USB bridges. Takes ~2–3 minutes — keep the cable still.
+        </p>
+      </div>
+
       <div class="row" style="margin-top:16px">
         <button type="button" id="btnConnect">1. Connect USB</button>
         <button type="button" id="btnFlash" disabled>2. Flash PaxxTouch</button>
@@ -92,6 +99,6 @@
     </footer>
   </div>
 
-  <script type="module" src="app.js?v=4"></script>
+  <script type="module" src="app.js?v=5"></script>
 </body>
 </html>
