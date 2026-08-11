@@ -1,5 +1,9 @@
 # PaxxTouch Feature Status
 
+## v0.1.2 — Display color fix
+
+- Fix red/blue channel swap on K-Touch / PandaTouch RGB565 panel (UI + remote mirror)
+
 ## v0.1.1 — Web flasher fix
 
 - Web flasher preserves PlatformIO bootloader flash headers (fixes blank screen after successful web flash)

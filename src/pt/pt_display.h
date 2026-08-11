@@ -180,6 +180,11 @@ static void pt_init_backlight(uint8_t set_percent)
  *  LVGL Callbacks
  * ========================= */
 
+/** K-Touch / PandaTouch RGB565 panel expects BGR channel order in each pixel word. */
+inline uint16_t pt_rgb565_swap_rb(uint16_t c) {
+  return static_cast<uint16_t>((c & 0x07E0) | ((c & 0x001F) << 11) | ((c & 0xF800) >> 11));
+}
+
 /**
  * @brief Flushes the display buffer to the screen.
  *
@@ -194,7 +199,12 @@ inline void pt_disp_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px
 {
   uint32_t w = lv_area_get_width(area);
   uint32_t h = lv_area_get_height(area);
-  pt_gfx.draw16bitRGBBitmap(area->x1, area->y1, (uint16_t *)px_map, w, h);
+  uint16_t *map = reinterpret_cast<uint16_t *>(px_map);
+  const uint32_t count = w * h;
+  for (uint32_t i = 0; i < count; ++i) {
+    map[i] = pt_rgb565_swap_rb(map[i]);
+  }
+  pt_gfx.draw16bitRGBBitmap(area->x1, area->y1, map, w, h);
 
   lv_disp_flush_ready(disp);
 }

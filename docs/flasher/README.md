@@ -25,16 +25,16 @@ https://techjeeper.github.io/PaxxTouch/flasher/
 Build and package the **remote** firmware (default):
 
 ```powershell
-.\scripts\package-firmware.ps1 -Version "0.1.1"
+.\scripts\package-firmware.ps1 -Version "0.1.2"
 ```
 
 For the legacy full Moonraker UI build:
 
 ```powershell
-.\scripts\package-firmware.ps1 -Version "0.1.1" -Env paxxtouch
+.\scripts\package-firmware.ps1 -Version "0.1.2" -Env paxxtouch
 ```
 
-Upload the files from `dist/firmware/` as assets on a GitHub Release tagged `v0.1.1`:
+Upload the files from `dist/firmware/` as assets on a GitHub Release tagged `v0.1.2`:
 
 | Asset | Flash offset |
 |-------|----------------|
