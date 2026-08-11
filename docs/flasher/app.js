@@ -86,16 +86,57 @@ async function fetchLatestRelease() {
   return release;
 }
 
-async function downloadAsset(url, name) {
+async function downloadAsset(asset, name) {
   log(`Downloading ${name}…`);
-  const resp = await fetch(url);
+  // GitHub API asset URL (browser_download_url is blocked by CORS from GitHub Pages)
+  const resp = await fetch(asset.url, {
+    headers: { Accept: "application/octet-stream" },
+  });
   if (!resp.ok) throw new Error(`Failed to download ${name}: HTTP ${resp.status}`);
-  const buf = await resp.arrayBuffer();
-  if (buf.byteLength < 1024) {
+  return readFirmwareBlob(await resp.arrayBuffer(), name);
+}
+
+async function downloadLocal(name) {
+  const base = state.manifest.firmwareLocal?.base || "./firmware/";
+  const url = base + name;
+  log(`Loading ${name}…`);
+  const resp = await fetch(url, { cache: "no-cache" });
+  if (!resp.ok) throw new Error(`Failed to load ${name}: HTTP ${resp.status}`);
+  return readFirmwareBlob(await resp.arrayBuffer(), name);
+}
+
+function readFirmwareBlob(buf, name) {
+  if (buf.byteLength < 256) {
     throw new Error(`${name} looks too small (${buf.byteLength} bytes) — wrong file?`);
   }
   log(`  ${name}: ${buf.byteLength} bytes`);
   return new Uint8Array(buf);
+}
+
+async function loadFirmwareSpec(spec) {
+  const localBase = state.manifest.firmwareLocal?.base;
+  if (localBase) {
+    try {
+      const data = await downloadLocal(spec.asset);
+      return { data, address: spec.offset };
+    } catch (err) {
+      log(`Local ${spec.asset} unavailable (${err.message}), trying GitHub release…`);
+    }
+  }
+
+  if (!state.release) {
+    throw new Error("No GitHub release loaded. Click Refresh or switch to Manual files.");
+  }
+  const asset = state.release.assets.find((a) => a.name === spec.asset);
+  if (!asset) {
+    if (spec.optional) {
+      log(`Skipping optional ${spec.asset}`);
+      return null;
+    }
+    throw new Error(`Release missing asset: ${spec.asset}`);
+  }
+  const data = await downloadAsset(asset, spec.asset);
+  return { data, address: spec.offset };
 }
 
 async function resolveFirmwareFiles() {
@@ -103,20 +144,9 @@ async function resolveFirmwareFiles() {
   const manifest = state.manifest;
 
   if ($("sourceRelease").checked) {
-    if (!state.release) {
-      throw new Error("No GitHub release loaded. Click Refresh or switch to Manual files.");
-    }
     for (const spec of manifest.files) {
-      const asset = state.release.assets.find((a) => a.name === spec.asset);
-      if (!asset) {
-        if (spec.optional) {
-          log(`Skipping optional ${spec.asset}`);
-          continue;
-        }
-        throw new Error(`Release missing asset: ${spec.asset}`);
-      }
-      const data = await downloadAsset(asset.browser_download_url, spec.asset);
-      files.push({ data, address: spec.offset });
+      const entry = await loadFirmwareSpec(spec);
+      if (entry) files.push(entry);
     }
     return files;
   }
@@ -245,8 +275,14 @@ async function init() {
 
   try {
     await loadManifest();
+    if (state.manifest.firmwareLocal?.base) {
+      setStatus(`Firmware v${state.manifest.version} ready (bundled) — connect USB to flash.`, "ok");
+    }
     if (manifestGithubReady(state.manifest)) {
       await fetchLatestRelease();
+      if (state.manifest.firmwareLocal?.base && state.release) {
+        setStatus(`Firmware v${state.manifest.version} ready — connect USB to flash.`, "ok");
+      }
     } else {
       $("sourceManual").checked = true;
       toggleSourcePanels();

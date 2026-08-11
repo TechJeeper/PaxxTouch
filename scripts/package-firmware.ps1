@@ -25,6 +25,11 @@ Copy-Item (Join-Path $BuildDir "bootloader.bin") (Join-Path $OutDir "paxxtouch-b
 Copy-Item (Join-Path $BuildDir "partitions.bin") (Join-Path $OutDir "paxxtouch-partitions.bin") -Force
 Copy-Item (Join-Path $BuildDir "firmware.bin") (Join-Path $OutDir "paxxtouch-firmware.bin") -Force
 
+$PagesFirmware = Join-Path $Root "docs\flasher\firmware"
+New-Item -ItemType Directory -Force -Path $PagesFirmware | Out-Null
+Copy-Item (Join-Path $OutDir "*") $PagesFirmware -Force
+Write-Host "Copied firmware to $PagesFirmware (web flasher same-origin hosting)"
+
 # boot_app0.bin from Arduino-ESP32 framework (required for OTA partition table)
 $BootApp0 = Get-ChildItem "$env:USERPROFILE\.platformio\packages" -Recurse -Filter "boot_app0.bin" -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($BootApp0) {
