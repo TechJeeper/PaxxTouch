@@ -278,6 +278,9 @@ async function flashDevice() {
     setProgress(100, true);
     setStatus("Flash complete! PaxxTouch is rebooting.", "ok");
     log("Success — firmware written. Device reset.");
+    if (window.goatcounter && window.goatcounter.count) {
+      window.goatcounter.count({ path: 'flash-success', title: 'Flash Success', event: true });
+    }
     await disconnectDevice();
   } finally {
     $("btnFlash").disabled = !state.esploader;
