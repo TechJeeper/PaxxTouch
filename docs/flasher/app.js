@@ -1,6 +1,6 @@
-import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.5.4/+esm";
+import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.6.1/+esm";
 
-const FLASHER_VERSION = 3;
+const FLASHER_VERSION = 4;
 
 const $ = (id) => document.getElementById(id);
 
@@ -102,6 +102,24 @@ function readFirmwareBlob(buf, name) {
   }
   log(`  ${name}: ${buf.byteLength} bytes`);
   return new Uint8Array(buf);
+}
+
+/** esptool-js writeFlash expects Latin-1 binary strings (not Uint8Array) in browser builds. */
+function uint8ToBinaryString(bytes) {
+  const CHUNK = 8192;
+  const parts = [];
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    const slice = bytes.subarray(i, i + CHUNK);
+    parts.push(String.fromCharCode.apply(null, slice));
+  }
+  return parts.join("");
+}
+
+function toFlashFileArray(entries) {
+  return entries.map(({ data, address }) => ({
+    data: data instanceof Uint8Array ? uint8ToBinaryString(data) : data,
+    address,
+  }));
 }
 
 async function downloadFirmwareBin(name) {
@@ -240,7 +258,7 @@ async function flashDevice() {
   setStatus("Preparing firmware…");
 
   try {
-    const fileArray = await resolveFirmwareFiles();
+    const fileArray = toFlashFileArray(await resolveFirmwareFiles());
     if (!fileArray.length) throw new Error("No firmware files to flash.");
 
     const flash = state.manifest.flash;
