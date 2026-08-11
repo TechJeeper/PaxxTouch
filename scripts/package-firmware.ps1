@@ -1,19 +1,21 @@
 # Package PaxxTouch build artifacts for GitHub Releases + web flasher.
-# Usage: .\scripts\package-firmware.ps1 [-Version "1.0.0"]
+# Usage: .\scripts\package-firmware.ps1 [-Version "0.1.0"] [-Env "paxxtouch-remote"]
 
 param(
-    [string]$Version = "0.0.1"
+    [string]$Version = "0.1.0",
+    [ValidateSet("paxxtouch-remote", "paxxtouch")]
+    [string]$Env = "paxxtouch-remote"
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
-$BuildDir = Join-Path $Root ".pio\build\paxxtouch"
+$BuildDir = Join-Path $Root ".pio\build\$Env"
 $OutDir = Join-Path $Root "dist\firmware"
 
 if (-not (Test-Path (Join-Path $BuildDir "firmware.bin"))) {
-    Write-Host "Building firmware first..."
+    Write-Host "Building firmware ($Env)..."
     Push-Location $Root
-    python -m platformio run -e paxxtouch
+    python -m platformio run -e $Env
     Pop-Location
 }
 
@@ -37,7 +39,7 @@ if (Test-Path $ZipPath) { Remove-Item $ZipPath -Force }
 Compress-Archive -Path (Join-Path $OutDir "*") -DestinationPath $ZipPath
 
 Write-Host ""
-Write-Host "Packaged firmware to:"
+Write-Host "Packaged $Env firmware to:"
 Write-Host "  $OutDir"
 Write-Host "  $ZipPath"
 Write-Host ""

@@ -1,32 +1,33 @@
-# PaxxTouch Feature Status (v1.0.0)
+# PaxxTouch Feature Status
 
-## Completed
+## v0.1.0 — PaxxTouch Remote (shipped)
+
+Default build: `paxxtouch-remote`
 
 - [x] WiFi provisioning (scan, connect, NVS save)
-- [x] Moonraker WebSocket with full U1 object subscription
-- [x] Moonraker auth (API key + username/password login)
-- [x] Multi-printer profiles (up to 5, cycle in Settings)
-- [x] Print dashboard with all 4 extruder temperatures
-- [x] Print controls (pause/resume/cancel)
-- [x] Speed/flow adjustment (M220/M221 via sliders)
-- [x] Filament assignment from `print_task_config`
-- [x] Filament RFID write via Paxx `/printer/filament_detect/set`
-- [x] Remote Screen PNG decode + live mirror + touch injection
-- [x] Camera live snapshot from `/webcam/snapshot.jpg`
-- [x] Timelapse browser via Moonraker file API
-- [x] G-code file browser + start print
-- [x] Controls: G28 home, BED_MESH_CALIBRATE
-- [x] Firmware-config URL shortcut
-- [x] Dark/light theme toggle
-- [x] Push notifications (complete, error, paused)
-- [x] Arduino OTA ready
+- [x] Printer connection (IP, Moonraker port, auth, API key)
+- [x] Moonraker REST login for nginx-authenticated Remote Screen
+- [x] Fullscreen U1 panel mirror (480×320 PNG/JPEG snapshots)
+- [x] Touch forwarding (`POST /screen/touch`)
+- [x] HTTP keep-alive polling + ETag 304 skip
+- [x] Pipelined decode (poll never blocks on PNG/JPEG)
+- [x] Instant snapshot after touch
+- [x] JPEG endpoint probe when available
+- [x] Gear menu: WiFi, Printer, About, return to mirror
+- [x] Dark/light theme
+- [x] Web flasher + GitHub Releases
 
-## Future Enhancements
+## Legacy full UI (`paxxtouch` build)
 
-- [ ] In-app MP4 timelapse playback (ESP32 hardware decode)
-- [ ] WebRTC camera stream (lower latency than snapshot polling)
-- [ ] MQTT timelapse API direct integration
-- [ ] Full multi-printer management UI (add/edit/delete profiles)
-- [ ] Captive portal WiFi provisioning (basic scan/connect UI implemented)
-- [ ] Prometheus metrics dashboard
-- [ ] ESP-IDF port for tear-free display
+Still compilable, not the default release:
+
+- [x] Moonraker WebSocket + print dashboard
+- [x] Filament / Files / Camera / Timelapse / Controls screens
+- [x] Push notifications, multi-printer profiles, OTA
+
+## Future enhancements
+
+- [ ] WebSocket transport (`fb-http-ws` on port 8093) if LAN-accessible
+- [ ] Direct framebuffer blit (bypass LVGL invalidate for mirror)
+- [ ] Captive portal WiFi provisioning
+- [ ] ESP-IDF port for tear-free display ([PandaTouch_IDF](https://github.com/bigtreetech/PandaTouch_IDF))

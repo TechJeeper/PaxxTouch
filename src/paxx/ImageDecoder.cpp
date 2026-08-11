@@ -10,6 +10,7 @@
 namespace {
 
 PNG *gPng = nullptr;
+static PNG gPngDecoder;
 uint16_t *gDecodeOut = nullptr;
 uint8_t *gDecodeOut888 = nullptr;
 SemaphoreHandle_t gDecodeMutex = nullptr;
@@ -29,16 +30,27 @@ void decodeYield(int y) {
     yield();
 }
 
+int pngDrawRgb565(PNGDRAW *pDraw) {
+    if (!gDecodeOut || !gPng) return 0;
+    if (pDraw->y >= gDecodeH || pDraw->iWidth <= 0 || pDraw->iWidth > gDecodeW) return 0;
+
+    uint16_t *dst = gDecodeOut + static_cast<size_t>(pDraw->y) * static_cast<size_t>(gDecodeW);
+    gPng->getLineAsRGB565(pDraw, dst, PNG_RGB565_LITTLE_ENDIAN, 0xFFFF);
+    decodeYield(pDraw->y);
+    return 1;
+}
+
 int pngDrawRgb888(PNGDRAW *pDraw) {
     if (!gDecodeOut888 || !gPng) return 0;
-    if (pDraw->y >= gDecodeH) return 0;
+    if (pDraw->y >= gDecodeH || pDraw->iWidth <= 0 || pDraw->iWidth > gDecodeW) return 0;
 
     uint8_t *dst = gDecodeOut888 + static_cast<size_t>(pDraw->y) * static_cast<size_t>(gDecodeW) * 3;
+    const int w = pDraw->iWidth;
     const uint8_t *s = pDraw->pPixels;
 
     switch (pDraw->iPixelType) {
         case PNG_PIXEL_TRUECOLOR:
-            for (int x = 0; x < pDraw->iWidth; x++) {
+            for (int x = 0; x < w; x++) {
                 dst[x * 3 + 0] = s[0];
                 dst[x * 3 + 1] = s[1];
                 dst[x * 3 + 2] = s[2];
@@ -46,7 +58,7 @@ int pngDrawRgb888(PNGDRAW *pDraw) {
             }
             break;
         case PNG_PIXEL_TRUECOLOR_ALPHA:
-            for (int x = 0; x < pDraw->iWidth; x++) {
+            for (int x = 0; x < w; x++) {
                 dst[x * 3 + 0] = s[0];
                 dst[x * 3 + 1] = s[1];
                 dst[x * 3 + 2] = s[2];
@@ -55,8 +67,12 @@ int pngDrawRgb888(PNGDRAW *pDraw) {
             break;
         default: {
             uint16_t line[640];
+            if (w > static_cast<int>(sizeof(line) / sizeof(line[0]))) {
+                Serial.printf("[Image] PNG line overflow width=%d\n", w);
+                return 0;
+            }
             gPng->getLineAsRGB565(pDraw, line, PNG_RGB565_LITTLE_ENDIAN, 0xFFFFFFFF);
-            for (int x = 0; x < pDraw->iWidth; x++) {
+            for (int x = 0; x < w; x++) {
                 const uint16_t px = line[x];
                 dst[x * 3 + 0] = static_cast<uint8_t>((px >> 11) << 3);
                 dst[x * 3 + 1] = static_cast<uint8_t>(((px >> 5) & 0x3F) << 2);
@@ -94,7 +110,7 @@ bool decodePngInternal(const uint8_t *data, size_t len, uint8_t *&rgb888, int &w
     rgb888 = nullptr;
     if (!data || len < 8) return false;
 
-    PNG png;
+    PNG &png = gPngDecoder;
     gPng = &png;
     const int rcOpen = png.openRAM(const_cast<uint8_t *>(data), len, pngDrawRgb888);
     if (rcOpen != PNG_SUCCESS) {
@@ -141,7 +157,61 @@ bool decodePngInternal(const uint8_t *data, size_t len, uint8_t *&rgb888, int &w
     return true;
 }
 
-bool decodeJpegInternal(const uint8_t *data, size_t len, uint16_t *&rgb565, int &w, int &h) {
+bool decodePngRgb565Internal(const uint8_t *data, size_t len, uint16_t *&rgb565, int &w, int &h,
+                             uint16_t *intoBuffer = nullptr) {
+    rgb565 = nullptr;
+    if (!data || len < 8) return false;
+
+    PNG &png = gPngDecoder;
+    gPng = &png;
+    const int rcOpen = png.openRAM(const_cast<uint8_t *>(data), len, pngDrawRgb565);
+    if (rcOpen != PNG_SUCCESS) {
+        gPng = nullptr;
+        return false;
+    }
+
+    w = png.getWidth();
+    h = png.getHeight();
+    if (!decodeSizeOk(w, h)) {
+        png.close();
+        gPng = nullptr;
+        return false;
+    }
+
+    gDecodeW = w;
+    gDecodeH = h;
+
+    const size_t bytes = static_cast<size_t>(w) * h * sizeof(uint16_t);
+    if (intoBuffer) {
+        gDecodeOut = intoBuffer;
+    } else {
+        gDecodeOut = static_cast<uint16_t *>(heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        if (!gDecodeOut) gDecodeOut = static_cast<uint16_t *>(malloc(bytes));
+        if (!gDecodeOut) {
+            png.close();
+            gPng = nullptr;
+            return false;
+        }
+    }
+
+    const int rcDecode = png.decode(nullptr, 0);
+    png.close();
+    gPng = nullptr;
+    if (rcDecode != PNG_SUCCESS) {
+        if (!intoBuffer) {
+            free(gDecodeOut);
+        }
+        gDecodeOut = nullptr;
+        return false;
+    }
+
+    rgb565 = intoBuffer ? intoBuffer : gDecodeOut;
+    gDecodeOut = nullptr;
+    return true;
+}
+
+bool decodeJpegInternal(const uint8_t *data, size_t len, uint16_t *&rgb565, int &w, int &h,
+                        uint16_t *intoBuffer = nullptr) {
     rgb565 = nullptr;
     if (!data || len < 4) return false;
 
@@ -165,58 +235,98 @@ bool decodeJpegInternal(const uint8_t *data, size_t len, uint16_t *&rgb565, int 
     gDecodeH = h;
 
     const size_t bytes = static_cast<size_t>(w) * h * sizeof(uint16_t);
-    gDecodeOut = static_cast<uint16_t *>(heap_caps_calloc(1, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    if (!gDecodeOut) gDecodeOut = static_cast<uint16_t *>(calloc(1, bytes));
-    if (!gDecodeOut) {
-        Serial.printf("[Image] JPEG alloc failed %u bytes\n", static_cast<unsigned>(bytes));
-        return false;
+    if (intoBuffer) {
+        gDecodeOut = intoBuffer;
+        memset(intoBuffer, 0, bytes);
+    } else {
+        gDecodeOut = static_cast<uint16_t *>(heap_caps_calloc(1, bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        if (!gDecodeOut) gDecodeOut = static_cast<uint16_t *>(calloc(1, bytes));
+        if (!gDecodeOut) {
+            return false;
+        }
     }
 
     TJpgDec.setCallback(jpgOutput);
     TJpgDec.setJpgScale(1);
     if (TJpgDec.drawJpg(0, 0, const_cast<uint8_t *>(data), len) != JDR_OK) {
-        Serial.println("[Image] JPEG decode failed");
-        free(gDecodeOut);
+        if (!intoBuffer) free(gDecodeOut);
         gDecodeOut = nullptr;
         return false;
     }
 
-    rgb565 = gDecodeOut;
+    rgb565 = intoBuffer ? intoBuffer : gDecodeOut;
     gDecodeOut = nullptr;
-    Serial.printf("[Image] JPEG ok %dx%d\n", w, h);
     return true;
 }
 
-enum class DecodeKind { Png, Jpeg };
+}  // namespace
 
-struct DecodeJob {
-    const uint8_t *data;
-    size_t len;
-    DecodeKind kind;
-    void *out;
-    int w;
-    int h;
-    bool ok;
-    SemaphoreHandle_t done;
-};
+enum class DecodeKind { Png, PngRgb565, Jpeg, PngRgb565Into, JpegInto };
 
-void decodeWorker(void *arg) {
-    auto *job = static_cast<DecodeJob *>(arg);
-    job->out = nullptr;
-    job->w = job->h = 0;
+TaskHandle_t gDecodeTask = nullptr;
+SemaphoreHandle_t gDecodeDone = nullptr;
+static StackType_t gDecodeStack[16384];
+static StaticTask_t gDecodeTaskStorage;
+DecodeKind gJobKind = DecodeKind::Png;
+const uint8_t *gJobData = nullptr;
+size_t gJobLen = 0;
+void *gJobOut = nullptr;
+uint16_t *gJobDst = nullptr;
+int gJobW = 0;
+int gJobH = 0;
+bool gJobOk = false;
 
-    if (job->kind == DecodeKind::Png) {
-        uint8_t *buf = nullptr;
-        job->ok = decodePngInternal(job->data, job->len, buf, job->w, job->h);
-        job->out = buf;
-    } else {
-        uint16_t *buf = nullptr;
-        job->ok = decodeJpegInternal(job->data, job->len, buf, job->w, job->h);
-        job->out = buf;
+void decodeLoop(void *) {
+    for (;;) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        gJobOut = nullptr;
+        gJobW = gJobH = 0;
+        gJobOk = false;
+
+        if (gJobKind == DecodeKind::Png) {
+            uint8_t *buf = nullptr;
+            gJobOk = decodePngInternal(gJobData, gJobLen, buf, gJobW, gJobH);
+            gJobOut = buf;
+        } else if (gJobKind == DecodeKind::PngRgb565) {
+            uint16_t *buf = nullptr;
+            gJobOk = decodePngRgb565Internal(gJobData, gJobLen, buf, gJobW, gJobH);
+            gJobOut = buf;
+        } else if (gJobKind == DecodeKind::PngRgb565Into) {
+            uint16_t *buf = gJobDst;
+            gJobOk = decodePngRgb565Internal(gJobData, gJobLen, buf, gJobW, gJobH, gJobDst);
+            gJobOut = buf;
+        } else if (gJobKind == DecodeKind::JpegInto) {
+            uint16_t *buf = gJobDst;
+            gJobOk = decodeJpegInternal(gJobData, gJobLen, buf, gJobW, gJobH, gJobDst);
+            gJobOut = buf;
+        } else {
+            uint16_t *buf = nullptr;
+            gJobOk = decodeJpegInternal(gJobData, gJobLen, buf, gJobW, gJobH);
+            gJobOut = buf;
+        }
+
+        if (gDecodeDone) xSemaphoreGive(gDecodeDone);
+    }
+}
+
+bool ensureDecodeWorker() {
+    if (gDecodeTask) return true;
+
+    constexpr uint32_t kStackWords = sizeof(gDecodeStack) / sizeof(gDecodeStack[0]);
+    gDecodeDone = xSemaphoreCreateBinary();
+    if (!gDecodeDone) return false;
+
+    gDecodeTask = xTaskCreateStaticPinnedToCore(decodeLoop, "imgDec", kStackWords, nullptr, 1, gDecodeStack,
+                                                &gDecodeTaskStorage, 1);
+    if (!gDecodeTask) {
+        Serial.printf("[Image] decode worker create failed (free=%u)\n", static_cast<unsigned>(ESP.getFreeHeap()));
+        vSemaphoreDelete(gDecodeDone);
+        gDecodeDone = nullptr;
+        return false;
     }
 
-    xSemaphoreGive(job->done);
-    vTaskDelete(nullptr);
+    Serial.printf("[Image] decode worker ready (stack=%u words)\n", kStackWords);
+    return true;
 }
 
 bool runDecodeOnWorker(DecodeKind kind, const uint8_t *data, size_t len, void *&out, int &w, int &h) {
@@ -231,43 +341,36 @@ bool runDecodeOnWorker(DecodeKind kind, const uint8_t *data, size_t len, void *&
         return false;
     }
 
-    DecodeJob job{};
-    job.data = data;
-    job.len = len;
-    job.kind = kind;
-    job.done = xSemaphoreCreateBinary();
-    if (!job.done) {
+    if (!ensureDecodeWorker()) {
         xSemaphoreGive(gDecodeMutex);
         return false;
     }
 
-    constexpr uint32_t kStackWords = 65536 / sizeof(StackType_t);
-    if (xTaskCreate(decodeWorker, "imgDec", kStackWords, &job, 1, nullptr) != pdPASS) {
-        vSemaphoreDelete(job.done);
-        Serial.println("[Image] decode task create failed");
-        xSemaphoreGive(gDecodeMutex);
-        return false;
-    }
+    gJobKind = kind;
+    gJobData = data;
+    gJobLen = len;
+    while (gDecodeDone && xSemaphoreTake(gDecodeDone, 0) == pdTRUE) {}
+    xTaskNotifyGive(gDecodeTask);
 
-    const bool finished = xSemaphoreTake(job.done, pdMS_TO_TICKS(30000)) == pdTRUE;
-    vSemaphoreDelete(job.done);
-
+    const bool finished = xSemaphoreTake(gDecodeDone, pdMS_TO_TICKS(30000)) == pdTRUE;
     if (!finished) {
         Serial.println("[Image] decode task timeout");
         xSemaphoreGive(gDecodeMutex);
         return false;
     }
 
-    if (job.ok) {
-        out = job.out;
-        w = job.w;
-        h = job.h;
+    if (gJobOk) {
+        out = gJobOut;
+        w = gJobW;
+        h = gJobH;
     }
     xSemaphoreGive(gDecodeMutex);
-    return job.ok;
+    return gJobOk;
 }
 
-}  // namespace
+void ImageDecoder::initWorker() {
+    ensureDecodeWorker();
+}
 
 bool ImageDecoder::decodePng(const uint8_t *data, size_t len, uint8_t *&rgb888, int &w, int &h) {
     void *out = nullptr;
@@ -276,11 +379,48 @@ bool ImageDecoder::decodePng(const uint8_t *data, size_t len, uint8_t *&rgb888, 
     return ok;
 }
 
+bool ImageDecoder::decodePngRgb565(const uint8_t *data, size_t len, uint16_t *&rgb565, int &w, int &h) {
+    void *out = nullptr;
+    const bool ok = runDecodeOnWorker(DecodeKind::PngRgb565, data, len, out, w, h);
+    rgb565 = static_cast<uint16_t *>(out);
+    return ok;
+}
+
 bool ImageDecoder::decodeJpeg(const uint8_t *data, size_t len, uint16_t *&rgb565, int &w, int &h) {
     void *out = nullptr;
     const bool ok = runDecodeOnWorker(DecodeKind::Jpeg, data, len, out, w, h);
     rgb565 = static_cast<uint16_t *>(out);
     return ok;
+}
+
+bool ImageDecoder::decodePngRgb565IntoSync(const uint8_t *data, size_t len, uint16_t *dst, int &w, int &h) {
+    if (!dst || !data || len < 8) return false;
+    if (!gDecodeMutex) gDecodeMutex = xSemaphoreCreateMutex();
+    if (!gDecodeMutex) return false;
+    if (xSemaphoreTake(gDecodeMutex, pdMS_TO_TICKS(5000)) != pdTRUE) return false;
+    uint16_t *buf = nullptr;
+    const bool ok = decodePngRgb565Internal(data, len, buf, w, h, dst);
+    xSemaphoreGive(gDecodeMutex);
+    return ok;
+}
+
+bool ImageDecoder::decodeJpegIntoSync(const uint8_t *data, size_t len, uint16_t *dst, int &w, int &h) {
+    if (!dst || !data || len < 4) return false;
+    if (!gDecodeMutex) gDecodeMutex = xSemaphoreCreateMutex();
+    if (!gDecodeMutex) return false;
+    if (xSemaphoreTake(gDecodeMutex, pdMS_TO_TICKS(5000)) != pdTRUE) return false;
+    uint16_t *buf = nullptr;
+    const bool ok = decodeJpegInternal(data, len, buf, w, h, dst);
+    xSemaphoreGive(gDecodeMutex);
+    return ok;
+}
+
+bool ImageDecoder::decodePngRgb565Into(const uint8_t *data, size_t len, uint16_t *dst, int &w, int &h) {
+    return decodePngRgb565IntoSync(data, len, dst, w, h);
+}
+
+bool ImageDecoder::decodeJpegInto(const uint8_t *data, size_t len, uint16_t *dst, int &w, int &h) {
+    return decodeJpegIntoSync(data, len, dst, w, h);
 }
 
 void ImageDecoder::freeBuffer(void *buf) {

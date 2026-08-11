@@ -3,21 +3,27 @@
 #include "ui/Notify.h"
 #include "ui/Keyboard.h"
 #include "ui/ConsoleLog.h"
+#include "paxx/BuildConfig.h"
 #include "pt/pt_display.h"
-
 #include <WiFi.h>
 
 void PaxxApp::begin() {
     PaxxPreferences::instance().load(config_);
 
+#if PAXX_REMOTE_ONLY
+    config_.remoteScreenEnabled = true;
+#endif
+
     PaxxTheme::apply(config_.darkTheme);
     buildShell();
     PaxxNotify::init(shell_);
 
+#ifndef PAXX_REMOTE_ONLY
     moonraker_.setStatusCallback([this](const PrinterStatus &s) { onStatusUpdate(s); });
     moonraker_.setNotifyCallback([this](const char *title, const char *msg) {
         if (config_.notificationsEnabled) PaxxNotify::show(title, msg);
     });
+#endif
     wifi_.setStatusCallback([this](bool connected, const char *message) {
         if (activeScreen_ == wifiScreen_.root() && message && message[0]) {
             wifiScreen_.setStatus(message);
@@ -25,6 +31,12 @@ void PaxxApp::begin() {
         if (connected) {
             wifiLostAtMs_ = 0;
             if (PaxxPreferences::instance().hasPrinter()) applyProfile();
+#if PAXX_REMOTE_ONLY
+            if (activeTickKind_ && strcmp(activeTickKind_, "remote") == 0) {
+                syncServices();
+                remoteScreen_.resetProbe();
+            }
+#endif
         } else if (!wifi_.isConnectPending()) {
             wifiLostAtMs_ = millis();
         }
@@ -44,6 +56,10 @@ void PaxxApp::begin() {
         } else {
             showSetup();
         }
+#if PAXX_REMOTE_ONLY
+    } else {
+        showRemote();
+#endif
     }
 
     ota_.begin("paxxtouch");
@@ -51,10 +67,16 @@ void PaxxApp::begin() {
 
 void PaxxApp::syncServices() {
     const PrinterProfile &p = activeProfile(config_);
-    remoteScreen_.begin(p.host, p.useAuth, p.username, p.password, p.apiKey);
+    const char *apiKey = p.apiKey[0] ? p.apiKey : nullptr;
+    const char *token = moonrakerRest_.authToken()[0] ? moonrakerRest_.authToken() : nullptr;
+    remoteScreen_.begin(p.host, p.useAuth, p.username, p.password, apiKey, token);
+#if PAXX_REMOTE_ONLY
+    remoteScreen_.setEnabled(true);
+#else
     remoteScreen_.setEnabled(config_.remoteScreenEnabled);
-    camera_.begin(p.host, p.useAuth, p.username, p.password, p.apiKey);
+    camera_.begin(p.host, p.useAuth, p.username, p.password, apiKey, token);
     thumbnails_.begin(p.host, p.moonrakerPort, p.useAuth, p.username, p.password, p.apiKey);
+#endif
 }
 
 void PaxxApp::ensureMoonrakerRest() {
@@ -83,6 +105,23 @@ void PaxxApp::applyProfile() {
     const PrinterProfile &p = activeProfile(config_);
     if (p.host[0] == '\0') return;
 
+#if PAXX_REMOTE_ONLY
+    Serial.printf("[Remote] apply profile host=%s\n", p.host);
+    moonrakerRest_.configure(p.host, p.moonrakerPort, p.useAuth, p.username, p.password, p.apiKey);
+    syncServices();
+
+    if (p.useAuth && !p.apiKey[0]) {
+        String token;
+        if (moonrakerRest_.login(token)) {
+            syncServices();
+            if (remoteScreen_.isViewActive()) remoteScreen_.resetProbe();
+        } else {
+            Serial.println("[Remote] login failed — check username/password");
+        }
+    }
+    return;
+#endif
+
     if (moonraker_.isConnectedTo(p.host, p.moonrakerPort)) {
         syncServices();
         return;
@@ -108,6 +147,7 @@ void PaxxApp::applyProfile() {
     if (!moonrakerRest_.login(token) && p.useAuth) {
         Serial.println("[Moonraker] login failed — check username/password or API key");
     }
+    syncServices();
 
     const char *tok = token.length() ? token.c_str() : (p.apiKey[0] ? p.apiKey : nullptr);
     const char *key = p.apiKey[0] ? p.apiKey : nullptr;
@@ -135,15 +175,20 @@ void PaxxApp::reconnectPrinter() {
 
 void PaxxApp::loop() {
     pt_loop_display();
+#ifndef PAXX_REMOTE_ONLY
     moonraker_.loop();
+#endif
     wifi_.loop();
 
     if (wifiLostAtMs_ != 0 && !WiFi.isConnected() &&
         millis() - wifiLostAtMs_ > 5000) {
+#ifndef PAXX_REMOTE_ONLY
         moonraker_.disconnect();
+#endif
         wifiLostAtMs_ = 0;
     }
 
+#if !PAXX_REMOTE_ONLY
     if (WiFi.isConnected() && activeProfile(config_).host[0] != '\0') {
         static unsigned long lastMoonrakerRetryMs = 0;
         static unsigned long lastRestPollMs = 0;
@@ -160,16 +205,21 @@ void PaxxApp::loop() {
             moonraker_.pollViaRest(moonrakerRest_);
         }
     }
+#endif
 
     ota_.loop();
     PaxxNotify::loop();
 
+#ifndef PAXX_REMOTE_ONLY
     if (activeScreen_ == home_.root()) home_.onTick();
+#endif
 
     if (activeTickKind_) {
         if (strcmp(activeTickKind_, "remote") == 0) remote_.onTick();
+#ifndef PAXX_REMOTE_ONLY
         else if (strcmp(activeTickKind_, "camera") == 0) cameraScreen_.onTick();
         else if (strcmp(activeTickKind_, "terminal") == 0) terminal_.onTick();
+#endif
     }
 }
 
@@ -238,7 +288,11 @@ void PaxxApp::buildGearMenu() {
     lv_obj_center(gearIcon);
 
     gearMenu_ = lv_obj_create(shell_);
+#if PAXX_REMOTE_ONLY
+    lv_obj_set_size(gearMenu_, 220, 156);
+#else
     lv_obj_set_size(gearMenu_, 220, 108);
+#endif
     lv_obj_align(gearMenu_, LV_ALIGN_TOP_RIGHT, -8, 54);
     lv_obj_set_style_bg_color(gearMenu_, PaxxTheme::surface(isDark()), LV_PART_MAIN);
     lv_obj_set_style_border_color(gearMenu_, PaxxTheme::primary(), LV_PART_MAIN);
@@ -273,6 +327,32 @@ void PaxxApp::buildGearMenu() {
     lv_label_set_text(printerLbl, LV_SYMBOL_DRIVE "  Printer Connection");
     lv_obj_center(printerLbl);
 
+#if PAXX_REMOTE_ONLY
+    lv_obj_t *settingsBtn = lv_btn_create(gearMenu_);
+    lv_obj_set_width(settingsBtn, LV_PCT(100));
+    lv_obj_set_height(settingsBtn, 40);
+    lv_obj_add_event_cb(settingsBtn, [](lv_event_t *e) {
+        auto *app = static_cast<PaxxApp *>(lv_event_get_user_data(e));
+        app->hideGearMenu();
+        app->showSettings();
+    }, LV_EVENT_CLICKED, this);
+    lv_obj_t *settingsLbl = lv_label_create(settingsBtn);
+    lv_label_set_text(settingsLbl, LV_SYMBOL_LIST "  About / Settings");
+    lv_obj_center(settingsLbl);
+
+    lv_obj_t *remoteBtn = lv_btn_create(gearMenu_);
+    lv_obj_set_width(remoteBtn, LV_PCT(100));
+    lv_obj_set_height(remoteBtn, 40);
+    lv_obj_add_event_cb(remoteBtn, [](lv_event_t *e) {
+        auto *app = static_cast<PaxxApp *>(lv_event_get_user_data(e));
+        app->hideGearMenu();
+        app->showRemote();
+    }, LV_EVENT_CLICKED, this);
+    lv_obj_t *remoteLbl = lv_label_create(remoteBtn);
+    lv_label_set_text(remoteLbl, LV_SYMBOL_IMAGE "  Remote Screen");
+    lv_obj_center(remoteLbl);
+#endif
+
     lv_obj_move_foreground(gearBtn_);
 }
 
@@ -288,6 +368,12 @@ void PaxxApp::buildShell() {
     lv_obj_set_style_pad_all(content_, 0, LV_PART_MAIN);
     paxx_disable_input(content_);
 
+#if PAXX_REMOTE_ONLY
+    remote_.create(this, content_);
+    setup_.create(this, content_);
+    wifiScreen_.create(this, content_);
+    settings_.create(this, content_);
+#else
     home_.create(this, content_);
     print_.create(this, content_);
     filament_.create(this, content_);
@@ -301,12 +387,17 @@ void PaxxApp::buildShell() {
     settings_.create(this, content_);
     setup_.create(this, content_);
     wifiScreen_.create(this, content_);
+#endif
 
     lv_scr_load(shell_);
     PaxxKeyboard::init(shell_);
     PaxxKeyboard::setVisibilityListener(onKeyboardVisibility, this);
     buildGearMenu();
+#if PAXX_REMOTE_ONLY
+    showRemote();
+#else
     showHome();
+#endif
 }
 
 void PaxxApp::showScreen(lv_obj_t *screen, const char *tickKind) {
@@ -314,9 +405,17 @@ void PaxxApp::showScreen(lv_obj_t *screen, const char *tickKind) {
     PaxxKeyboard::hide();
     if (activeTickKind_) {
         if (strcmp(activeTickKind_, "remote") == 0) remote_.onLeave();
+#ifndef PAXX_REMOTE_ONLY
         else if (strcmp(activeTickKind_, "camera") == 0) cameraScreen_.onLeave();
+#endif
     }
 
+#if PAXX_REMOTE_ONLY
+    lv_obj_add_flag(remote_.root(), LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(setup_.root(), LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(wifiScreen_.root(), LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(settings_.root(), LV_OBJ_FLAG_HIDDEN);
+#else
     lv_obj_add_flag(home_.root(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(print_.root(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(filament_.root(), LV_OBJ_FLAG_HIDDEN);
@@ -330,19 +429,24 @@ void PaxxApp::showScreen(lv_obj_t *screen, const char *tickKind) {
     lv_obj_add_flag(settings_.root(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(setup_.root(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(wifiScreen_.root(), LV_OBJ_FLAG_HIDDEN);
+#endif
 
     activeScreen_ = screen;
     activeTickKind_ = tickKind;
     lv_obj_clear_flag(screen, LV_OBJ_FLAG_HIDDEN);
 
     if (tickKind && strcmp(tickKind, "remote") == 0) remote_.onEnter();
+#ifndef PAXX_REMOTE_ONLY
     else if (screen == timelapse_.root()) timelapse_.onEnter();
     else if (tickKind && strcmp(tickKind, "camera") == 0) cameraScreen_.onEnter();
     else if (screen == files_.root()) files_.onEnter();
     else if (screen == filament_.root()) filament_.onEnter();
+#endif
     else if (screen == wifiScreen_.root()) wifiScreen_.onEnter();
 
+#ifndef PAXX_REMOTE_ONLY
     refreshActiveScreen(moonraker_.status());
+#endif
 }
 
 void PaxxApp::showHome() {

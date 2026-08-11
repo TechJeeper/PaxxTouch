@@ -3,6 +3,7 @@
 #include "ui/Notify.h"
 #include "ui/Keyboard.h"
 #include "ui/ConsoleLog.h"
+#include "paxx/BuildConfig.h"
 #include "paxx/ImageDecoder.h"
 #include "pt/pt_board.h"
 
@@ -32,6 +33,10 @@ ImageFit fitImageInArea(int imgW, int imgH, int areaW, int areaH) {
     fit.offsetX = (areaW - fit.dispW) / 2;
     fit.offsetY = (areaH - fit.dispH) / 2;
     return fit;
+}
+
+void remoteSpinnerAnim(void *obj, int32_t v) {
+    lv_arc_set_end_angle(static_cast<lv_obj_t *>(obj), static_cast<int>(v));
 }
 
 uint32_t parseHexColor(const char *hex, uint32_t fallback = 0x888888) {
@@ -117,7 +122,15 @@ lv_obj_t *makeMenuBtn(PaxxApp *app, lv_obj_t *parent, const char *icon, const ch
 }  // namespace
 
 void paxx_back_home_cb(lv_event_t *e) {
+#if PAXX_REMOTE_ONLY
+    static_cast<PaxxApp *>(lv_event_get_user_data(e))->showRemote();
+#else
     static_cast<PaxxApp *>(lv_event_get_user_data(e))->showHome();
+#endif
+}
+
+void paxx_back_remote_cb(lv_event_t *e) {
+    static_cast<PaxxApp *>(lv_event_get_user_data(e))->showRemote();
 }
 
 void paxx_back_files_cb(lv_event_t *e) {
@@ -595,11 +608,17 @@ void RemoteScreenView::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_set_style_bg_opa(screen_, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(screen_, 0, LV_PART_MAIN);
     paxx_disable_input(screen_);
+#if !PAXX_REMOTE_ONLY
     paxx_create_nav_bar(screen_, "Remote Screen", paxx_back_home_cb, app, app->isDark());
+#endif
 
     canvasArea_ = lv_obj_create(screen_);
+#if PAXX_REMOTE_ONLY
+    lv_obj_set_size(canvasArea_, LV_PCT(100), LV_PCT(100));
+#else
     lv_obj_align(canvasArea_, LV_ALIGN_TOP_LEFT, 0, kNavBarHeight);
     lv_obj_set_size(canvasArea_, PT_LCD_H_RES, PT_LCD_V_RES - kNavBarHeight);
+#endif
     lv_obj_set_style_bg_color(canvasArea_, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_border_width(canvasArea_, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(canvasArea_, 0, LV_PART_MAIN);
@@ -611,43 +630,105 @@ void RemoteScreenView::create(PaxxApp *app, lv_obj_t *parent) {
     }, LV_EVENT_ALL, this);
 
     statusLbl_ = lv_label_create(canvasArea_);
-    lv_obj_align(statusLbl_, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_align(statusLbl_, LV_ALIGN_CENTER, 0, 32);
     lv_obj_set_width(statusLbl_, LV_PCT(95));
     lv_label_set_long_mode(statusLbl_, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(statusLbl_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     paxx_disable_input(statusLbl_);
+
+    loadingArc_ = lv_arc_create(canvasArea_);
+    lv_obj_set_size(loadingArc_, 52, 52);
+    lv_obj_align(loadingArc_, LV_ALIGN_CENTER, 0, -24);
+    lv_arc_set_rotation(loadingArc_, 270);
+    lv_arc_set_bg_angles(loadingArc_, 0, 360);
+    lv_arc_set_angles(loadingArc_, 0, 90);
+    lv_obj_set_style_arc_width(loadingArc_, 6, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_width(loadingArc_, 6, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(loadingArc_, lv_color_hex(0x4DA3FF), LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(loadingArc_, lv_color_hex(0x303030), LV_PART_MAIN);
+    lv_obj_remove_style(loadingArc_, NULL, LV_PART_KNOB);
+    lv_obj_remove_flag(loadingArc_, LV_OBJ_FLAG_CLICKABLE);
+    paxx_disable_input(loadingArc_);
+    lv_obj_add_flag(loadingArc_, LV_OBJ_FLAG_HIDDEN);
+
+    lv_anim_t anim;
+    lv_anim_init(&anim);
+    lv_anim_set_var(&anim, loadingArc_);
+    lv_anim_set_exec_cb(&anim, remoteSpinnerAnim);
+    lv_anim_set_values(&anim, 30, 390);
+    lv_anim_set_time(&anim, 900);
+    lv_anim_set_repeat_count(&anim, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_start(&anim);
+
+    touchMarker_ = lv_obj_create(canvasArea_);
+    lv_obj_set_size(touchMarker_, 22, 22);
+    lv_obj_set_style_radius(touchMarker_, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(touchMarker_, lv_color_hex(0x4DA3FF), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(touchMarker_, LV_OPA_60, LV_PART_MAIN);
+    lv_obj_set_style_border_width(touchMarker_, 2, LV_PART_MAIN);
+    lv_obj_set_style_border_color(touchMarker_, lv_color_white(), LV_PART_MAIN);
+    lv_obj_add_flag(touchMarker_, LV_OBJ_FLAG_HIDDEN);
+    paxx_disable_input(touchMarker_);
 
     image_ = lv_image_create(canvasArea_);
     lv_obj_center(image_);
     paxx_disable_input(image_);
 }
 
+namespace {
+
+bool mapRemoteTouchToU1(lv_obj_t *canvasArea, int frameW, int frameH, lv_point_t pt, int &u1x, int &u1y) {
+    if (!canvasArea || frameW <= 0 || frameH <= 0) return false;
+
+    lv_area_t canvas{};
+    lv_obj_get_coords(canvasArea, &canvas);
+    const int canvasW = lv_area_get_width(&canvas);
+    const int canvasH = lv_area_get_height(&canvas);
+    const ImageFit fit = fitImageInArea(frameW, frameH, canvasW, canvasH);
+    if (fit.dispW <= 0 || fit.dispH <= 0) return false;
+
+    const int localX = pt.x - canvas.x1 - fit.offsetX;
+    const int localY = pt.y - canvas.y1 - fit.offsetY;
+    if (localX < 0 || localY < 0 || localX >= fit.dispW || localY >= fit.dispH) return false;
+
+    u1x = constrain((localX * frameW) / fit.dispW, 0, frameW - 1);
+    u1y = constrain((localY * frameH) / fit.dispH, 0, frameH - 1);
+    return true;
+}
+
+}  // namespace
+
+void RemoteScreenView::showTouchIndicator(lv_point_t pt) {
+    if (!touchMarker_ || !canvasArea_) return;
+
+    lv_area_t canvas{};
+    lv_obj_get_coords(canvasArea_, &canvas);
+    const int x = pt.x - canvas.x1 - 11;
+    const int y = pt.y - canvas.y1 - 11;
+    lv_obj_set_pos(touchMarker_, x, y);
+    lv_obj_move_foreground(touchMarker_);
+    lv_obj_clear_flag(touchMarker_, LV_OBJ_FLAG_HIDDEN);
+    touchMarkerHideMs_ = millis() + 600;
+}
+
 void RemoteScreenView::handleCanvasTouch(lv_event_t *e) {
     const lv_event_code_t code = lv_event_get_code(e);
     if (code != LV_EVENT_PRESSED && code != LV_EVENT_PRESSING && code != LV_EVENT_RELEASED) return;
-    if (frameW_ <= 0 || frameH_ <= 0) return;
-
-    const unsigned long now = millis();
-    lastTouchActivityMs_ = now;
 
     lv_indev_t *indev = lv_event_get_indev(e);
     if (!indev) return;
-    lv_point_t pt;
+    lv_point_t pt{};
     lv_indev_get_point(indev, &pt);
+    showTouchIndicator(pt);
 
-    lv_area_t imgArea;
-    lv_obj_get_coords(image_, &imgArea);
-    if (pt.x < imgArea.x1 || pt.x > imgArea.x2 || pt.y < imgArea.y1 || pt.y > imgArea.y2) return;
+    if (frameW_ <= 0 || frameH_ <= 0) return;
 
-    const int dispW = lv_area_get_width(&imgArea);
-    const int dispH = lv_area_get_height(&imgArea);
-    if (dispW <= 0 || dispH <= 0) return;
+    int u1x = 0;
+    int u1y = 0;
+    if (!mapRemoteTouchToU1(canvasArea_, frameW_, frameH_, pt, u1x, u1y)) return;
 
-    const int localX = pt.x - imgArea.x1;
-    const int localY = pt.y - imgArea.y1;
-
-    const int u1x = constrain((localX * frameW_ + dispW / 2) / dispW, 0, frameW_ - 1);
-    const int u1y = constrain((localY * frameH_ + dispH / 2) / dispH, 0, frameH_ - 1);
+    const unsigned long now = millis();
+    lastTouchActivityMs_ = now;
 
     RemoteTouchAction action = RemoteTouchAction::Move;
     if (code == LV_EVENT_PRESSED) {
@@ -659,8 +740,8 @@ void RemoteScreenView::handleCanvasTouch(lv_event_t *e) {
         lastSentU1X_ = u1x;
         lastSentU1Y_ = u1y;
     } else {
-        if (now - lastTouchSendMs_ < 50) return;
-        if (lastSentU1X_ >= 0 && abs(u1x - lastSentU1X_) < 6 && abs(u1y - lastSentU1Y_) < 6) return;
+        if (now - lastTouchSendMs_ < 20) return;
+        if (lastSentU1X_ >= 0 && abs(u1x - lastSentU1X_) < 4 && abs(u1y - lastSentU1Y_) < 4) return;
         lastSentU1X_ = u1x;
         lastSentU1Y_ = u1y;
     }
@@ -669,12 +750,23 @@ void RemoteScreenView::handleCanvasTouch(lv_event_t *e) {
     app_->remoteScreen().queueTouch(u1x, u1y, action);
 }
 
+void RemoteScreenView::setLoadingVisible(bool visible, const char *text) {
+    if (loadingArc_) {
+        if (visible) lv_obj_clear_flag(loadingArc_, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(loadingArc_, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (visible) {
+        if (loadingArc_) lv_obj_move_foreground(loadingArc_);
+        if (statusLbl_) lv_obj_move_foreground(statusLbl_);
+    }
+    updateStatusLine(visible ? (text && text[0] ? text : "Loading…") : "");
+}
+
 void RemoteScreenView::updateStatusLine(const char *text) {
     if (!statusLbl_) return;
     const bool show = text && text[0];
     lv_label_set_text(statusLbl_, show ? text : "");
     if (show) {
-        lv_obj_move_foreground(statusLbl_);
         lv_obj_clear_flag(statusLbl_, LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(statusLbl_, LV_OBJ_FLAG_HIDDEN);
@@ -684,38 +776,43 @@ void RemoteScreenView::updateStatusLine(const char *text) {
 void RemoteScreenView::onEnter() {
     lastFetchMs_ = 0;
     lastProbeMs_ = millis();
+    connectStartedMs_ = millis();
     lastTouchSendMs_ = 0;
     lastTouchActivityMs_ = 0;
+    lastBlitMs_ = 0;
     lastSentU1X_ = -1;
     lastSentU1Y_ = -1;
     serviceAvailable_ = false;
     failCount_ = 0;
 
     if (!app_->config().remoteScreenEnabled) {
+        setLoadingVisible(false);
         updateStatusLine("Enable Remote Screen in Settings");
         return;
     }
+
+    app_->remoteScreen().setViewActive(true);
+
     if (!WiFi.isConnected()) {
-        updateStatusLine("WiFi required for remote screen");
+        setLoadingVisible(true, "Waiting for WiFi…");
         return;
     }
 
     app_->syncServices();
     app_->remoteScreen().resetProbe();
-    app_->remoteScreen().pumpSnapshot();
-    updateStatusLine("Connecting to U1 remote screen…");
+    app_->applyProfile();
+    setLoadingVisible(true, "Connecting to U1 remote screen…");
 }
 
 void RemoteScreenView::onLeave() {
+    app_->remoteScreen().setViewActive(false);
+    setLoadingVisible(false);
     releaseFrame();
 }
 
 void RemoteScreenView::releaseFrame() {
     if (image_) lv_image_set_src(image_, NULL);
-    if (frameBuf_) {
-        ImageDecoder::freeBuffer(frameBuf_);
-        frameBuf_ = nullptr;
-    }
+    frameBuf_ = nullptr;
     frameW_ = 0;
     frameH_ = 0;
     frameFormat_ = LV_COLOR_FORMAT_UNKNOWN;
@@ -726,50 +823,107 @@ void RemoteScreenView::onTick() {
     if (!app_->config().remoteScreenEnabled) return;
     if (!WiFi.isConnected()) return;
 
-    app_->remoteScreen().setRefreshIntervalMs(
-        (millis() - lastTouchActivityMs_ < 2500) ? 1500UL : 2000UL);
-    app_->remoteScreen().pumpSnapshot();
+    if (touchMarker_ && touchMarkerHideMs_ != 0 && millis() > touchMarkerHideMs_) {
+        lv_obj_add_flag(touchMarker_, LV_OBJ_FLAG_HIDDEN);
+        touchMarkerHideMs_ = 0;
+    }
+
+    const unsigned long sinceTouch = millis() - lastTouchActivityMs_;
+#if PAXX_REMOTE_ONLY
+    app_->remoteScreen().setRefreshIntervalMs(sinceTouch < 3000 ? 33UL : 100UL);
+#else
+    app_->remoteScreen().setRefreshIntervalMs(sinceTouch < 5000 ? 100UL : 150UL);
+#endif
 
     const RemoteProbeState probe = app_->remoteScreen().probeState();
+
     if (probe == RemoteProbeState::Idle) {
-        app_->remoteScreen().resetProbe();
-    } else if (probe == RemoteProbeState::Failed && millis() - lastProbeMs_ > 8000) {
-        lastProbeMs_ = millis();
-        app_->remoteScreen().resetProbe();
+        if (millis() - lastProbeMs_ > 1000) {
+            lastProbeMs_ = millis();
+            connectStartedMs_ = millis();
+            app_->syncServices();
+            app_->remoteScreen().resetProbe();
+            setLoadingVisible(true, "Connecting to U1 remote screen…");
+        }
+        return;
     }
 
     uint8_t *buf = nullptr;
     lv_color_format_t format = LV_COLOR_FORMAT_UNKNOWN;
     int w = 0;
     int h = 0;
-    if (app_->remoteScreen().pollFrame(buf, format, w, h) && buf) {
-        if (image_) lv_image_set_src(image_, NULL);
-        if (frameBuf_) ImageDecoder::freeBuffer(frameBuf_);
-        frameBuf_ = buf;
-        frameFormat_ = format;
-        frameW_ = w;
-        frameH_ = h;
-        ImageDecoder::bindLvImage(imageDsc_, image_, frameBuf_, frameFormat_, w, h,
-                                  lv_obj_get_width(canvasArea_), lv_obj_get_height(canvasArea_));
-        updateStatusLine("");
-        lastFetchMs_ = millis();
-        failCount_ = 0;
-        serviceAvailable_ = true;
-        Serial.printf("[Remote] frame displayed %dx%d\n", w, h);
-        return;
+    const unsigned long now = millis();
+    const bool touchActive = sinceTouch < 500;
+    const unsigned long blitInterval = touchActive ? 16UL : 66UL;
+    if (lastBlitMs_ == 0 || now - lastBlitMs_ >= blitInterval) {
+        if (app_->remoteScreen().pollFrame(buf, format, w, h) && buf) {
+            const bool layoutChanged = (frameBuf_ == nullptr) || frameW_ != w || frameH_ != h;
+            lastBlitMs_ = now;
+            frameBuf_ = buf;
+            frameFormat_ = format;
+            frameW_ = w;
+            frameH_ = h;
+            if (layoutChanged) {
+                ImageDecoder::bindLvImage(imageDsc_, image_, frameBuf_, frameFormat_, w, h,
+                                          lv_obj_get_width(canvasArea_), lv_obj_get_height(canvasArea_));
+                if (touchMarker_) lv_obj_move_foreground(touchMarker_);
+            } else {
+                imageDsc_.data = frameBuf_;
+                lv_image_set_src(image_, &imageDsc_);
+                lv_obj_invalidate(image_);
+            }
+            lv_obj_move_foreground(image_);
+            setLoadingVisible(false);
+            lastFetchMs_ = now;
+            failCount_ = 0;
+            serviceAvailable_ = true;
+            return;
+        }
     }
 
     if (probe == RemoteProbeState::Failed) {
+        setLoadingVisible(false);
+        updateStatusLine(app_->remoteScreen().probeError());
+        if (millis() - lastProbeMs_ > 8000) {
+            lastProbeMs_ = millis();
+            connectStartedMs_ = millis();
+            setLoadingVisible(true, "Retrying remote screen…");
+            app_->syncServices();
+            app_->remoteScreen().resetProbe();
+        }
+        return;
+    }
+
+    if (probe == RemoteProbeState::Running && millis() - connectStartedMs_ > 20000) {
+        app_->remoteScreen().forceProbeFailed("Remote screen probe timed out\nCheck printer IP and U1 Remote Screen");
+        setLoadingVisible(false);
         updateStatusLine(app_->remoteScreen().probeError());
         return;
     }
 
-    if (lastFetchMs_ == 0 && millis() - lastProbeMs_ < 15000) {
-        updateStatusLine("Connecting to U1 remote screen…");
-    } else if (millis() - lastFetchMs_ > 4000 && lastFetchMs_ != 0) {
-        updateStatusLine("Waiting for remote screen frames…");
-    } else if (lastFetchMs_ == 0) {
-        updateStatusLine("Connecting to U1 remote screen…");
+    if (probe == RemoteProbeState::Ok && lastFetchMs_ == 0 && millis() - connectStartedMs_ > 12000) {
+        const char *snapErr = app_->remoteScreen().lastSnapshotError();
+        setLoadingVisible(false);
+        if (snapErr && snapErr[0]) {
+            updateStatusLine(snapErr);
+        } else {
+            updateStatusLine("Snapshot failed — enable Remote Screen on U1 and reboot");
+        }
+        if (millis() - lastProbeMs_ > 8000) {
+            lastProbeMs_ = millis();
+            connectStartedMs_ = millis();
+            setLoadingVisible(true, "Retrying remote screen…");
+            app_->remoteScreen().resetProbe();
+        }
+        return;
+    }
+
+    if (lastFetchMs_ == 0) {
+        setLoadingVisible(true, "Connecting to U1 remote screen…");
+    } else if (!frameBuf_ && millis() - lastFetchMs_ > 6000) {
+        setLoadingVisible(true, "Waiting for remote screen frames…");
+    } else if (frameBuf_) {
+        setLoadingVisible(false);
     }
 }
 
@@ -1325,6 +1479,34 @@ void SettingsScreen::create(PaxxApp *app, lv_obj_t *parent) {
         lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, app);
     };
 
+#if PAXX_REMOTE_ONLY
+    add(LV_SYMBOL_WIFI, "WiFi Setup", [](lv_event_t *e) { static_cast<PaxxApp *>(lv_event_get_user_data(e))->showWifi(); });
+    add(LV_SYMBOL_WIFI, "Printer Connection", [](lv_event_t *e) { static_cast<PaxxApp *>(lv_event_get_user_data(e))->showSetup(); });
+    add(LV_SYMBOL_IMAGE, "Remote Screen URL", [](lv_event_t *e) {
+        auto *a = static_cast<PaxxApp *>(lv_event_get_user_data(e));
+        const PrinterProfile &p = activeProfile(a->config());
+        char buf[96];
+        paxxFormatScreenUrl(p.host, buf, sizeof(buf));
+        a->settings().setHint(buf);
+    });
+    add(LV_SYMBOL_TINT, "Toggle Dark Theme", [](lv_event_t *e) {
+        auto *a = static_cast<PaxxApp *>(lv_event_get_user_data(e));
+        a->config().darkTheme = !a->config().darkTheme;
+        a->saveConfig();
+        PaxxTheme::apply(a->config().darkTheme);
+        a->settings().setHint("Theme updated — reopen screens to refresh");
+    });
+    add(LV_SYMBOL_LIST, "About", [](lv_event_t *e) {
+        auto *a = static_cast<PaxxApp *>(lv_event_get_user_data(e));
+        char buf[128];
+        snprintf(buf, sizeof(buf), "PaxxTouch Remote v" PAXXTOUCH_VERSION " — U1 mirror at http://<ip>/screen/");
+        a->settings().setHint(buf);
+    });
+
+    lv_obj_t *about = lv_label_create(screen_);
+    lv_obj_align(about, LV_ALIGN_BOTTOM_MID, 0, -4);
+    lv_label_set_text(about, "PaxxTouch Remote v" PAXXTOUCH_VERSION);
+#else
     add(LV_SYMBOL_WIFI, "WiFi Setup", [](lv_event_t *e) { static_cast<PaxxApp *>(lv_event_get_user_data(e))->showWifi(); });
     add(LV_SYMBOL_WIFI, "Printer Connection", [](lv_event_t *e) { static_cast<PaxxApp *>(lv_event_get_user_data(e))->showSetup(); });
     add(LV_SYMBOL_SETTINGS, "Firmware Config URL", [](lv_event_t *e) {
@@ -1377,6 +1559,7 @@ void SettingsScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_t *about = lv_label_create(screen_);
     lv_obj_align(about, LV_ALIGN_BOTTOM_MID, 0, -4);
     lv_label_set_text(about, "PaxxTouch v" PAXXTOUCH_VERSION);
+#endif
 }
 
 void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
@@ -1409,6 +1592,16 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     addField("Username (optional)", &userTa_, p.username);
     addField("Password (optional)", &passTa_, p.password, true);
 
+#if PAXX_REMOTE_ONLY
+    lv_obj_t *hint = lv_label_create(screen_);
+    lv_obj_set_width(hint, LV_PCT(92));
+    lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, y + 4);
+    lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
+    char urlHint[96];
+    paxxFormatScreenUrl(p.host, urlHint, sizeof(urlHint));
+    lv_label_set_text(hint, urlHint);
+#endif
+
     lv_obj_t *save = lv_btn_create(screen_);
     lv_obj_align(save, LV_ALIGN_BOTTOM_MID, 0, -12);
     lv_obj_add_event_cb(save, [](lv_event_t *e) {
@@ -1425,7 +1618,11 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
         if (a->config().profileCount <= 0) a->config().profileCount = 1;
         a->saveConfig();
         a->applyProfile();
+#if PAXX_REMOTE_ONLY
+        a->showRemote();
+#else
         a->showHome();
+#endif
     }, LV_EVENT_CLICKED, app);
     lv_label_set_text(lv_label_create(save), "Save & Connect");
 }

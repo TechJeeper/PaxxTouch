@@ -2,77 +2,72 @@
 
 ## Overview
 
-PaxxTouch is a **Moonraker client** firmware. The K-Touch / PandaTouch ESP32-S3 acts as a remote display and input device; all print logic remains on the U1 host running Klipper.
+**PaxxTouch Remote** (default build) turns the K-Touch / PandaTouch ESP32-S3 into a **wireless mirror** of the Snapmaker U1 touchscreen. Print logic stays on the U1; the handheld device only displays snapshots and forwards touch events.
 
-This differs from host-side UIs like HelixScreen (runs on the U1 itself) and from BTT’s stock K-Touch firmware (generic Klipper, not U1-aware).
+A **full Moonraker UI** build (`paxxtouch`) remains in the tree for developers but is not the shipped product.
 
-## Software Layers
+## Software layers (Remote build)
 
 ```
 ┌─────────────────────────────────────────┐
-│  LVGL UI (screens/, Theme)              │
+│  LVGL — RemoteScreenView + setup UI     │
 ├─────────────────────────────────────────┤
-│  PaxxApp orchestrator                   │
+│  PaxxApp — WiFi, profiles, gear menu    │
 ├─────────────────────────────────────────┤
-│  MoonrakerClient  │  RemoteScreenClient │
+│  RemoteScreenClient                     │
+│    poll task → decode task → UI blit    │
+│    touch task → POST /screen/touch      │
 ├─────────────────────────────────────────┤
-│  WiFi / HTTP / WebSocket                │
+│  MoonrakerRest — login for nginx auth   │
+├─────────────────────────────────────────┤
+│  WiFi / HTTP                            │
 ├─────────────────────────────────────────┤
 │  pt_display (BTT PandaTouch BSP)        │
 └─────────────────────────────────────────┘
 ```
 
-## Moonraker Integration
+## Boot flow (PAXX_REMOTE_ONLY)
 
-Primary transport: **WebSocket** at `ws://<host>:7125/websocket`
+1. Load WiFi + printer profile from NVS
+2. Connect WiFi if credentials saved
+3. If printer IP configured → **show Remote Screen** fullscreen
+4. Otherwise → WiFi Setup or Printer Connection wizard
+5. Gear menu (⚙) → WiFi, Printer, About, return to mirror
 
-### Subscribed objects
+## Remote Screen protocol
 
-| Object | Purpose |
-|--------|---------|
-| `print_stats` | Print state, filename, duration |
-| `toolhead` | Progress fraction |
-| `extruder` | Nozzle temperature |
-| `heater_bed` | Bed temperature |
-| `print_task_config` | U1 filament slots, extruder map |
-
-### G-code commands
-
-| Action | Command |
-|--------|---------|
-| Pause | `PAUSE` |
-| Resume | `RESUME` |
-| Cancel | `CANCEL_PRINT` |
-| Select tool | `T0` … `T3` |
-
-## Remote Screen
-
-When enabled in Paxx firmware ([docs](https://snapmakeru1-extended-firmware.pages.dev/remote_screen/)):
+Same as the U1 web client at `http://<printer-ip>/screen/`:
 
 | Endpoint | Use |
 |----------|-----|
-| `GET /screen/snapshot` | PNG of U1’s 480×320 panel |
-| `POST /screen/touch?x=&y=` | Inject touch events |
+| `GET /screen/snapshot` or `.jpg` | Panel image + `If-None-Match` → 304 when unchanged |
+| `POST /screen/touch?a=down\|move\|up&x=&y=` | Inject touch (fire-and-forget) |
 
-PaxxTouch maps touch on its 480×320 canvas widget to U1 coordinates. PNG decode/render on ESP32 is the next implementation step.
+nginx on the U1 proxies port 80 → fb-http on localhost.
 
-## Timelapse (planned)
+See [REMOTE_SCREEN.md](REMOTE_SCREEN.md) for performance details.
 
-U1 timelapses use the Paxx camera MQTT pipeline, not standard `moonraker-timelapse`. Planned approaches:
+## Moonraker (auth only)
 
-1. **Moonraker file API** — if timelapse directory is exposed
-2. **HTTP proxy** — small endpoint on printer listing `/userdata/.tmp_timelapse/timelapse.json`
-3. **MQTT client on ESP32** — `camera.get_timelapse_instance`
+The remote build uses **Moonraker REST login** to obtain a bearer token for nginx-authenticated snapshot/touch requests. It does not maintain a WebSocket print subscription.
+
+| Call | Purpose |
+|------|---------|
+| `POST /access/login` | Username/password → token |
+| `X-Api-Key` header | Alternative auth |
 
 ## Persistence
 
-Printer connection settings are stored in ESP32 NVS via `Preferences` (`paxxtouch` namespace).
+WiFi and printer settings stored in ESP32 NVS (`Preferences`, `paxxtouch` namespace). Up to 5 printer profiles supported in data structures; remote UI uses the active profile.
 
-## Build Targets
+## Build targets
 
-| Environment | Notes |
-|-------------|-------|
-| `paxxtouch` | Default; Arduino 2.x via PlatformIO |
-| `paxxtouch-arduino-3x` | Pinned Arduino 3.0.7; optional tearing fixes |
+| Environment | Product |
+|-------------|---------|
+| **`paxxtouch-remote`** | **Default** — fullscreen U1 mirror |
+| `paxxtouch` | Legacy full Moonraker UI |
+| `paxxtouch-arduino-3x` | Experimental Arduino 3.x pin |
 
-For production-quality display timing, consider migrating to [PandaTouch_IDF](https://github.com/bigtreetech/PandaTouch_IDF) (ESP-IDF native).
+## Full UI build (legacy)
+
+The `paxxtouch` environment includes Moonraker WebSocket, Print/Filament/Camera/Files screens, notifications, and OTA. See [FEATURES.md](FEATURES.md).

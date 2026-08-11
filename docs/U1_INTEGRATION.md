@@ -50,9 +50,9 @@ Useful settings for PaxxTouch users:
 
 PaxxTouch shows the URL in **Settings → Firmware Config URL** (open on a phone/PC browser).
 
-## Remote Screen Setup
+## Remote Screen Setup (required for PaxxTouch Remote)
 
-1. Open firmware-config → **Web** → enable **Remote Screen**
+1. Open [firmware-config](http://<printer-ip>/firmware-config/) → **Web** → enable **Remote Screen**
 2. Or edit manually:
 
 ```ini
@@ -61,17 +61,20 @@ PaxxTouch shows the URL in **Settings → Firmware Config URL** (open on a phone
 remote_screen: true
 ```
 
-```ini
-# extended/moonraker/04_remote_screen.cfg
-[webcam gui]
-enabled: true
-```
-
 3. Reboot the printer
-4. Test: `http://<printer-ip>/screen/` in a browser
-5. In PaxxTouch: **Settings → Toggle Remote Screen → Remote** screen
+4. Test in a browser: `http://<printer-ip>/screen/` — you should see the live panel
+5. On K-Touch / PandaTouch:
+   - **Gear → WiFi Setup** — same LAN as the printer
+   - **Gear → Printer Connection** — U1 IP, port 7125, username/password or API key if auth is on
+6. The device connects automatically and shows the mirror fullscreen
 
-Auth: if Moonraker login is enabled, configure username/password in PaxxTouch (planned v0.2).
+If auth is enabled on nginx, PaxxTouch logs in via Moonraker REST and passes the bearer token on snapshot/touch requests.
+
+**Troubleshooting mirror**
+
+- Printer and K-Touch must be on the same reachable network (check IP/subnet)
+- Serial log lines starting with `[Remote]` show probe, poll, and touch status
+- Restart fb-http on U1: `sudo /etc/init.d/S99fb-http restart`
 
 ## Timelapses
 
@@ -112,10 +115,11 @@ Requires paxx12 internal camera. See [camera docs](https://snapmakeru1-extended-
 - Start a print or load filament on the U1 first
 - Verify object exists: `curl http://<ip>:7125/printer/objects/query?print_task_config`
 
-**Remote Screen unavailable**
+**PaxxTouch stuck on Connecting**
 
-- Enable in firmware-config and reboot
-- Restart service: `sudo /etc/init.d/S99fb-http restart`
+- Verify printer IP in **Gear → Printer Connection**
+- Enable Remote Screen on U1 and reboot
+- Check auth credentials match Moonraker login
 
 ## Future API Additions
 

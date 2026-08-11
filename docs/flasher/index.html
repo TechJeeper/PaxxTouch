@@ -11,7 +11,7 @@
   <div class="wrap">
     <header>
       <h1>PaxxTouch Web Flasher</h1>
-      <p>Flash custom firmware to BTT K-Touch / PandaTouch — no drivers, no PlatformIO.</p>
+      <p>Flash <strong>PaxxTouch Remote</strong> to BTT K-Touch / PandaTouch — U1 panel mirror over Wi‑Fi.</p>
       <p><span class="badge" id="versionBadge">loading…</span></p>
     </header>
 
@@ -47,6 +47,9 @@
         <div class="file-row"><label>partitions.bin @ 0x8000</label><input type="file" id="filePartitions" accept=".bin"></div>
         <div class="file-row"><label>boot_app0.bin @ 0xE000 (optional)</label><input type="file" id="fileBootApp0" accept=".bin"></div>
         <div class="file-row"><label>firmware.bin @ 0x10000</label><input type="file" id="fileFirmware" accept=".bin"></div>
+        <p style="color:var(--muted);font-size:0.85rem;margin:8px 0 0">
+          Build with: <code>pio run -e paxxtouch-remote</code> — files in <code>.pio/build/paxxtouch-remote/</code>
+        </p>
       </div>
     </section>
 
@@ -72,9 +75,10 @@
       <h2>After flashing</h2>
       <ol class="steps">
         <li>Disconnect USB (or tap Reset if the screen stays blank).</li>
-        <li>Power on the K-Touch and connect to Wi‑Fi via <strong>Settings → WiFi Setup</strong>.</li>
-        <li>Enter your Snapmaker U1 IP in <strong>Settings → Printer Connection</strong>.</li>
-        <li>Ensure the U1 is running <a href="https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware" target="_blank" rel="noopener">Paxx Extended Firmware</a>.</li>
+        <li>Tap the <strong>gear icon</strong> (top-right) → <strong>WiFi Setup</strong> and connect to your LAN.</li>
+        <li><strong>Gear → Printer Connection</strong> — enter Snapmaker U1 IP, Moonraker port (7125), auth if needed.</li>
+        <li>On the U1: enable <strong>Remote Screen</strong> in <a href="https://snapmakeru1-extended-firmware.pages.dev/remote_screen/" target="_blank" rel="noopener">firmware-config</a> and reboot if prompted.</li>
+        <li>The device opens a fullscreen mirror of the U1 panel automatically.</li>
       </ol>
     </section>
 

@@ -5,7 +5,8 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
-void CameraService::begin(const char *host, bool useAuth, const char *user, const char *pass, const char *apiKey) {
+void CameraService::begin(const char *host, bool useAuth, const char *user, const char *pass,
+                          const char *apiKey, const char *token) {
     strlcpy(host_, host, sizeof(host_));
     useAuth_ = useAuth;
     if (user) strlcpy(user_, user, sizeof(user_));
@@ -16,6 +17,9 @@ void CameraService::begin(const char *host, bool useAuth, const char *user, cons
     if (apiKey && apiKey[0]) {
         http_.setApiKey(apiKey);
         http_.setToken(nullptr);
+    } else if (token && token[0]) {
+        http_.setApiKey(nullptr);
+        http_.setToken(token);
     } else {
         http_.setApiKey(nullptr);
         http_.setToken(nullptr);
@@ -26,7 +30,10 @@ void CameraService::begin(const char *host, bool useAuth, const char *user, cons
     }
     if (!mutex_) mutex_ = xSemaphoreCreateMutex();
     if (!workerTask_) {
-        xTaskCreatePinnedToCore(worker, "camera", 12288, this, 3, &workerTask_, 0);
+        if (xTaskCreatePinnedToCore(worker, "camera", 8192, this, 3, &workerTask_, 0) != pdPASS) {
+            Serial.println("[Camera] worker task create failed");
+            workerTask_ = nullptr;
+        }
     }
 }
 

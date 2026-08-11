@@ -1,90 +1,97 @@
-# PaxxTouch v0.0.1
+# PaxxTouch v0.1.0
 
-Custom firmware for **BIGTREETECH K-Touch** and **PandaTouch**, built for the **Snapmaker U1** running [Paxx Extended Firmware](https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware).
+Custom firmware for **BIGTREETECH K-Touch** and **PandaTouch** that mirrors the **Snapmaker U1** touchscreen over Wi‑Fi.
 
-## Features
+Built for printers running [Paxx Extended Firmware](https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware).
 
-| Screen | Capabilities |
-|--------|-------------|
-| **Home** | Live print status, progress, temps, connection chip |
-| **Print** | Job details, pause/resume/cancel, all 4 toolhead temps |
-| **Filament** | U1 `print_task_config` slots, tool select (T0–T3), Paxx RFID save |
-| **Remote Screen** | Live PNG mirror of U1 panel (480×320), touch forwarding |
-| **Timelapse** | Browse `.mp4` timelapses via Moonraker file API |
-| **Camera** | Live `/webcam/snapshot.jpg` feed |
-| **Files** | Browse gcode files, start prints |
-| **Controls** | G28 home, bed mesh, speed/flow sliders (M220/M221) |
-| **Settings** | WiFi, printer auth, firmware-config URL, theme, profiles, OTA |
-| **WiFi Setup** | Network scan, connect, save credentials |
+## What it does
 
-### Also included
+PaxxTouch turns your K-Touch / PandaTouch into a **wireless remote panel** for the U1:
 
-- Moonraker WebSocket with `print_task_config`, `gcode_move`, all extruders
-- Moonraker REST: login, file list, print start, Paxx `filament_detect/set`
-- Push notifications (print complete, error, paused)
-- Multi-printer profiles (up to 5, cycle in Settings)
-- Dark/light theme toggle
-- Arduino OTA support (`paxxtouch` hostname)
-- NVS persistence for WiFi + printer settings
+- Full-screen mirror of the U1 UI (480×320) via HTTP snapshot polling
+- Touch forwarding to the printer (`POST /screen/touch`)
+- Same protocol as the browser client at `http://<printer-ip>/screen/`
+- Wi‑Fi + printer IP setup stored on device (NVS)
 
-## Build & Flash
+After Wi‑Fi and printer IP are configured, the device **boots straight into the remote mirror** — no home menu, no Moonraker dashboard.
+
+Tap the **gear icon** (top-right) for WiFi Setup, Printer Connection, and About.
+
+## Requirements
+
+| Component | Requirement |
+|-----------|-------------|
+| Hardware | BTT K-Touch or PandaTouch (ESP32-S3, 16 MB flash) |
+| Printer | Snapmaker U1 with [Paxx Extended Firmware](https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware) |
+| U1 setting | **Remote Screen** enabled in [firmware-config](http://<printer-ip>/firmware-config/) |
+| Network | K-Touch and U1 on the same LAN (reachable IP) |
+| Auth | Moonraker username/password or API key if nginx auth is enabled |
+
+## Flash firmware
 
 ### Option A: Web flasher (recommended)
 
-Host on **GitHub Pages** and flash from Chrome/Edge — no PlatformIO needed on the user's PC.
+1. Open **[PaxxTouch Web Flasher](https://techjeeper.github.io/PaxxTouch/flasher/)** in Chrome or Edge
+2. Connect USB, click **Connect USB**, then **Flash PaxxTouch**
+3. Firmware downloads from the [latest GitHub Release](https://github.com/TechJeeper/PaxxTouch/releases/latest)
 
-1. Enable Pages: **Settings → Pages → `/docs` folder**
-2. Set `github.owner` / `github.repo` in [`docs/flasher/manifest.json`](docs/flasher/manifest.json)
-3. Publish a [GitHub Release](docs/flasher/README.md) with `paxxtouch-*.bin` assets
-4. Open `https://<user>.github.io/PaxxTouch/flasher/`
-
-See [docs/flasher/README.md](docs/flasher/README.md) for full setup.
+See [docs/flasher/README.md](docs/flasher/README.md) for self-hosting on GitHub Pages.
 
 ### Option B: PlatformIO (developers)
 
 ```bash
 cd PaxxTouch
-pio run -e paxxtouch
+pio run -e paxxtouch-remote -t upload --upload-port COM3
+```
+
+Package bins for a GitHub Release:
+
+```powershell
+.\scripts\package-firmware.ps1 -Version "0.1.0"
+```
+
+Upload the files from `dist/firmware/` as release assets (see flasher docs).
+
+### Full Moonraker UI (legacy build)
+
+The original multi-screen Moonraker client is still available as a separate build target:
+
+```bash
 pio run -e paxxtouch -t upload --upload-port COM3
 ```
 
-Package bins for release:
+This is **not** what the web flasher ships by default.
 
-```powershell
-.\scripts\package-firmware.ps1 -Version "1.0.0"
-```
+## First run
 
-## First Run
+1. Flash PaxxTouch Remote firmware
+2. **Gear → WiFi Setup** — connect to your LAN
+3. **Gear → Printer Connection** — enter U1 IP, Moonraker port (7125), auth if needed
+4. On the U1: enable **Remote Screen** in firmware-config and reboot if prompted
+5. The mirror connects automatically (`Connecting to U1 remote screen…` → live panel)
 
-1. Flash firmware to K-Touch/PandaTouch
-2. **WiFi Setup** — scan and connect to your LAN
-3. **Printer Connection** — enter U1 IP, Moonraker port (7125), optional auth/API key
-4. Ensure U1 has **Advanced Mode** enabled and Paxx Extended Firmware
+## Performance notes
 
-## U1 Requirements
+Remote Screen uses PNG/JPEG snapshots (~10 polls/s), not video. Static menus feel near-instant; animated U1 screens are limited by PNG decode time on the ESP32. See [docs/REMOTE_SCREEN.md](docs/REMOTE_SCREEN.md).
 
-- [Paxx Extended Firmware](https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware)
-- Moonraker on port **7125**
-- For Remote Screen: enable in `http://<ip>/firmware-config/`
-- For Camera/Timelapse: paxx12 internal camera enabled
-
-## Project Structure
+## Project structure
 
 ```
 src/
-├── moonraker/     WebSocket + REST clients
-├── paxx/          Remote screen, camera, PNG/JPEG decode
+├── paxx/          Remote screen, PNG/JPEG decode
 ├── net/           HTTP, WiFi, OTA
-├── storage/       NVS preferences + profiles
-├── ui/            LVGL screens
-└── pt/            BTT display BSP (from PandaTouch_PlatformIO)
+├── moonraker/     REST login (auth token for nginx)
+├── storage/       NVS WiFi + printer profiles
+├── ui/            LVGL remote mirror + setup screens
+└── pt/            BTT display BSP (PandaTouch PlatformIO)
 ```
 
 ## Docs
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [U1 Integration](docs/U1_INTEGRATION.md)
-- [Feature Roadmap](docs/FEATURES.md)
+- [Remote Screen architecture](docs/REMOTE_SCREEN.md)
+- [U1 integration](docs/U1_INTEGRATION.md)
+- [Architecture overview](docs/ARCHITECTURE.md)
+- [Feature roadmap](docs/FEATURES.md)
 
 ## License
 

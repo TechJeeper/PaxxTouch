@@ -8,7 +8,8 @@
 
 class CameraService {
 public:
-    void begin(const char *host, bool useAuth, const char *user, const char *pass, const char *apiKey = nullptr);
+    void begin(const char *host, bool useAuth, const char *user, const char *pass,
+               const char *apiKey = nullptr, const char *token = nullptr);
     void requestFetch();
     bool poll(uint16_t *&rgb565, int &w, int &h);
     bool fetchSnapshot(uint16_t *&rgb565, int &w, int &h);

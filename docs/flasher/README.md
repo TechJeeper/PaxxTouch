@@ -2,14 +2,12 @@
 
 Browser-based firmware installer for **BTT K-Touch** and **PandaTouch**, powered by [esptool-js](https://github.com/espressif/esptool-js) and the [Web Serial API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API).
 
-Works when hosted on **GitHub Pages** (HTTPS required).
+Flashes **PaxxTouch Remote** — fullscreen U1 panel mirror (default release build).
 
 ## Live URL
 
-After enabling GitHub Pages on this repo:
-
 ```
-https://<your-user>.github.io/PaxxTouch/flasher/
+https://techjeeper.github.io/PaxxTouch/flasher/
 ```
 
 ## GitHub Pages setup
@@ -18,19 +16,25 @@ https://<your-user>.github.io/PaxxTouch/flasher/
 2. Edit `docs/flasher/manifest.json` — set `github.owner` and `github.repo`
 3. **Settings → Pages → Build and deployment**
    - Source: **Deploy from a branch**
-   - Branch: `main` (or `master`)
+   - Branch: `main`
    - Folder: **`/docs`**
 4. Wait ~1 minute for the site to publish
 
 ## Creating a flashable release
 
-Build and package firmware binaries:
+Build and package the **remote** firmware (default):
 
 ```powershell
-.\scripts\package-firmware.ps1 -Version "1.0.0"
+.\scripts\package-firmware.ps1 -Version "0.1.0"
 ```
 
-Upload the files from `dist/firmware/` as assets on a GitHub Release tagged `v1.0.0`:
+For the legacy full Moonraker UI build:
+
+```powershell
+.\scripts\package-firmware.ps1 -Version "0.1.0" -Env paxxtouch
+```
+
+Upload the files from `dist/firmware/` as assets on a GitHub Release tagged `v0.1.0`:
 
 | Asset | Flash offset |
 |-------|----------------|
@@ -45,11 +49,20 @@ The web flasher downloads these automatically from the **latest** release.
 
 1. Open the flasher page
 2. Select **Manual files**
-3. Pick bins from `.pio/build/paxxtouch/`:
+3. Build remote firmware: `pio run -e paxxtouch-remote`
+4. Pick bins from `.pio/build/paxxtouch-remote/`:
    - `bootloader.bin`
    - `partitions.bin`
    - `firmware.bin`
    - `boot_app0.bin` (from PlatformIO Arduino package, optional)
+
+## After flashing
+
+1. Power on the K-Touch and open **gear → WiFi Setup**
+2. Connect to your LAN
+3. **gear → Printer Connection** — U1 IP, Moonraker port 7125, auth if required
+4. Enable **Remote Screen** on the U1 ([firmware-config](http://<printer-ip>/firmware-config/))
+5. Device boots into the U1 mirror automatically
 
 ## Browser support
 
@@ -79,6 +92,12 @@ The web flasher downloads these automatically from the **latest** release.
 
 - Re-flash stock BTT firmware first, then PaxxTouch
 - Try including `boot_app0.bin` in the release
+
+**Remote screen stuck on Connecting**
+
+- Verify U1 IP is correct and reachable from the same WiFi network
+- Enable Remote Screen on the U1 and reboot
+- Check Moonraker auth (username/password or API key)
 
 ## Security note
 

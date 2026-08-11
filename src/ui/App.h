@@ -105,12 +105,16 @@ public:
 private:
     void releaseFrame();
     void updateStatusLine(const char *text);
+    void setLoadingVisible(bool visible, const char *text = nullptr);
+    void showTouchIndicator(lv_point_t pt);
     void handleCanvasTouch(lv_event_t *e);
 
     PaxxApp *app_ = nullptr;
     lv_obj_t *screen_ = nullptr;
     lv_obj_t *canvasArea_ = nullptr;
     lv_obj_t *image_ = nullptr;
+    lv_obj_t *loadingArc_ = nullptr;
+    lv_obj_t *touchMarker_ = nullptr;
     lv_obj_t *statusLbl_ = nullptr;
     lv_image_dsc_t imageDsc_{};
     uint8_t *frameBuf_ = nullptr;
@@ -121,8 +125,11 @@ private:
     int lastSentU1Y_ = -1;
     unsigned long lastFetchMs_ = 0;
     unsigned long lastProbeMs_ = 0;
+    unsigned long connectStartedMs_ = 0;
     unsigned long lastTouchSendMs_ = 0;
     unsigned long lastTouchActivityMs_ = 0;
+    unsigned long lastBlitMs_ = 0;
+    unsigned long touchMarkerHideMs_ = 0;
     bool fetchInProgress_ = false;
     bool serviceAvailable_ = false;
     int failCount_ = 0;
