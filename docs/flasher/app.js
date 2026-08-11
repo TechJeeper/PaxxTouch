@@ -1,10 +1,13 @@
 import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.5.4/+esm";
 
+const FLASHER_VERSION = 3;
+
 const $ = (id) => document.getElementById(id);
 
 const state = {
   manifest: null,
   release: null,
+  firmwareCache: null,
   transport: null,
   esploader: null,
   chip: null,
@@ -53,8 +56,16 @@ function manifestGithubReady(manifest) {
   return owner && repo && owner !== "YOUR_GITHUB_USER";
 }
 
+function cdnFirmwareUrl(name) {
+  const cdn = state.manifest.firmwareCdn;
+  if (!cdn?.owner || !cdn?.repo) return null;
+  const ref = cdn.ref || "main";
+  const path = cdn.path || "docs/flasher/firmware/";
+  return `https://cdn.jsdelivr.net/gh/${cdn.owner}/${cdn.repo}@${ref}/${path}${name}`;
+}
+
 async function loadManifest() {
-  const resp = await fetch("./manifest.json", { cache: "no-cache" });
+  const resp = await fetch(`./manifest.json?v=${FLASHER_VERSION}`, { cache: "no-cache" });
   if (!resp.ok) throw new Error("Could not load manifest.json");
   state.manifest = await resp.json();
   const ver = state.manifest.version ? `v${state.manifest.version}` : "";
@@ -62,46 +73,26 @@ async function loadManifest() {
 }
 
 async function fetchLatestRelease() {
-  if (!manifestGithubReady(state.manifest)) {
-    setStatus("GitHub release not configured — use Manual files or edit manifest.json.", "warn");
-    $("sourceManual").checked = true;
-    toggleSourcePanels();
-    return null;
-  }
+  if (!manifestGithubReady(state.manifest)) return null;
 
   const { owner, repo } = state.manifest.github;
-  setStatus(`Fetching latest release from ${owner}/${repo}…`);
   const resp = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`);
-  if (!resp.ok) {
-    if (resp.status === 404) {
-      throw new Error(`No GitHub release found for ${owner}/${repo}. Use Manual files or publish a release.`);
-    }
-    throw new Error(`GitHub API error ${resp.status}. Try Manual files mode.`);
-  }
+  if (!resp.ok) return null;
+
   const release = await resp.json();
   state.release = release;
   const tag = release.tag_name.replace(/^v/i, "");
-  $("versionBadge").textContent = `${state.manifest.name} v${tag}`;
-  setStatus(`Release ${release.tag_name} ready (${release.assets.length} assets)`, "ok");
+  if (!state.manifest.firmwareLocal?.base && !state.manifest.firmwareCdn) {
+    $("versionBadge").textContent = `${state.manifest.name} v${tag}`;
+    setStatus(`Release ${release.tag_name} (metadata only)`, "ok");
+  }
   return release;
 }
 
-async function downloadAsset(asset, name) {
-  log(`Downloading ${name}…`);
-  // GitHub API asset URL (browser_download_url is blocked by CORS from GitHub Pages)
-  const resp = await fetch(asset.url, {
-    headers: { Accept: "application/octet-stream" },
-  });
-  if (!resp.ok) throw new Error(`Failed to download ${name}: HTTP ${resp.status}`);
-  return readFirmwareBlob(await resp.arrayBuffer(), name);
-}
-
-async function downloadLocal(name) {
-  const base = state.manifest.firmwareLocal?.base || "./firmware/";
-  const url = base + name;
-  log(`Loading ${name}…`);
+async function fetchBinary(url, name, label) {
+  log(`${label} ${name}…`);
   const resp = await fetch(url, { cache: "no-cache" });
-  if (!resp.ok) throw new Error(`Failed to load ${name}: HTTP ${resp.status}`);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
   return readFirmwareBlob(await resp.arrayBuffer(), name);
 }
 
@@ -113,45 +104,65 @@ function readFirmwareBlob(buf, name) {
   return new Uint8Array(buf);
 }
 
-async function loadFirmwareSpec(spec) {
+async function downloadFirmwareBin(name) {
   const localBase = state.manifest.firmwareLocal?.base;
   if (localBase) {
     try {
-      const data = await downloadLocal(spec.asset);
-      return { data, address: spec.offset };
+      return await fetchBinary(localBase + name, name, "Loading");
     } catch (err) {
-      log(`Local ${spec.asset} unavailable (${err.message}), trying GitHub release…`);
+      log(`Local ${name} unavailable (${err.message})`);
     }
   }
 
-  if (!state.release) {
-    throw new Error("No GitHub release loaded. Click Refresh or switch to Manual files.");
+  const cdnUrl = cdnFirmwareUrl(name);
+  if (cdnUrl) {
+    return await fetchBinary(cdnUrl, name, "Downloading");
   }
-  const asset = state.release.assets.find((a) => a.name === spec.asset);
-  if (!asset) {
-    if (spec.optional) {
-      log(`Skipping optional ${spec.asset}`);
-      return null;
+
+  throw new Error(
+    `Could not load ${name}. Use Manual files mode and pick bins from a release zip.`
+  );
+}
+
+async function prefetchFirmware() {
+  const manifest = state.manifest;
+  const cache = new Map();
+
+  for (const spec of manifest.files) {
+    try {
+      const data = await downloadFirmwareBin(spec.asset);
+      cache.set(spec.asset, { data, address: spec.offset });
+    } catch (err) {
+      if (spec.optional) {
+        log(`Skipping optional ${spec.asset}: ${err.message}`);
+        continue;
+      }
+      throw err;
     }
-    throw new Error(`Release missing asset: ${spec.asset}`);
   }
-  const data = await downloadAsset(asset, spec.asset);
-  return { data, address: spec.offset };
+
+  if (cache.size === 0) throw new Error("No firmware files loaded.");
+  state.firmwareCache = cache;
+  setStatus(`Firmware v${manifest.version} ready — connect USB to flash.`, "ok");
+  log(`Firmware v${manifest.version} cached (${cache.size} files).`);
 }
 
 async function resolveFirmwareFiles() {
-  const files = [];
-  const manifest = state.manifest;
-
   if ($("sourceRelease").checked) {
-    for (const spec of manifest.files) {
-      const entry = await loadFirmwareSpec(spec);
+    if (!state.firmwareCache?.size) {
+      await prefetchFirmware();
+    }
+    const files = [];
+    for (const spec of state.manifest.files) {
+      const entry = state.firmwareCache.get(spec.asset);
       if (entry) files.push(entry);
+      else if (!spec.optional) throw new Error(`Missing firmware file: ${spec.asset}`);
     }
     return files;
   }
 
   if ($("sourceManual").checked) {
+    const files = [];
     for (const [inputId, spec] of manualInputs()) {
       const input = $(inputId);
       if (!input.files?.length) {
@@ -168,7 +179,7 @@ async function resolveFirmwareFiles() {
     return files;
   }
 
-  throw new Error("Select firmware source (GitHub release or manual files).");
+  throw new Error("Select firmware source (bundled firmware or manual files).");
 }
 
 function manualInputs() {
@@ -270,32 +281,38 @@ async function init() {
     $("btnConnect").disabled = true;
     $("btnFlash").disabled = true;
   } else {
-    setStatus("Ready — connect your K-Touch via USB-C.");
+    setStatus("Loading firmware…");
   }
 
   try {
     await loadManifest();
-    if (state.manifest.firmwareLocal?.base) {
-      setStatus(`Firmware v${state.manifest.version} ready (bundled) — connect USB to flash.`, "ok");
-    }
-    if (manifestGithubReady(state.manifest)) {
-      await fetchLatestRelease();
-      if (state.manifest.firmwareLocal?.base && state.release) {
-        setStatus(`Firmware v${state.manifest.version} ready — connect USB to flash.`, "ok");
-      }
+    await fetchLatestRelease().catch(() => null);
+
+    if ($("sourceRelease").checked) {
+      await prefetchFirmware();
     } else {
-      $("sourceManual").checked = true;
-      toggleSourcePanels();
-      setStatus("Manual files mode — build with PlatformIO or use packaged bins.", "warn");
+      setStatus("Manual files mode — select .bin files below.", "warn");
     }
   } catch (err) {
-    setStatus(err.message, "warn");
+    setStatus(err.message, "err");
     log(String(err.message));
     $("sourceManual").checked = true;
     toggleSourcePanels();
   }
 
-  $("sourceRelease").addEventListener("change", toggleSourcePanels);
+  $("sourceRelease").addEventListener("change", async () => {
+    toggleSourcePanels();
+    if ($("sourceRelease").checked) {
+      state.firmwareCache = null;
+      try {
+        setStatus("Loading firmware…");
+        await prefetchFirmware();
+      } catch (err) {
+        setStatus(err.message, "err");
+        log(String(err.message));
+      }
+    }
+  });
   $("sourceManual").addEventListener("change", toggleSourcePanels);
   toggleSourcePanels();
 
@@ -309,16 +326,22 @@ async function init() {
 
   $("btnFlash").addEventListener("click", () => flashDevice().catch((e) => {
     setStatus(e.message, "err");
-    log(`Error: ${e.message}`);
+    log(String(e.message));
     setProgress(0, false);
     $("btnFlash").disabled = !state.esploader;
     $("btnConnect").disabled = !!state.esploader;
   }));
 
-  $("btnFetchRelease").addEventListener("click", () => fetchLatestRelease().catch((e) => {
-    setStatus(e.message, "err");
-    log(String(e.message));
-  }));
+  $("btnFetchRelease").addEventListener("click", async () => {
+    state.firmwareCache = null;
+    try {
+      setStatus("Reloading firmware…");
+      await prefetchFirmware();
+    } catch (err) {
+      setStatus(err.message, "err");
+      log(String(err.message));
+    }
+  });
 }
 
 init();

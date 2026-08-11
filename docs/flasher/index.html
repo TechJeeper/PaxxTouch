@@ -28,16 +28,16 @@
     <section class="card">
       <h2>Firmware source</h2>
       <div class="row">
-        <label><input type="radio" name="source" id="sourceRelease" checked> Latest GitHub Release</label>
+        <label><input type="radio" name="source" id="sourceRelease" checked> Bundled firmware (recommended)</label>
         <label><input type="radio" name="source" id="sourceManual"> Manual files (.bin)</label>
       </div>
 
       <div id="panelRelease" style="margin-top:12px">
         <p style="color:var(--muted);font-size:0.9rem;margin:0 0 8px">
-          Loads firmware from this site (<code>firmware/</code> folder, same version as manifest).
-          Falls back to GitHub Release assets if local files are missing.
+          Loads <code>paxxtouch-*.bin</code> via jsDelivr CDN (CORS-safe from GitHub Pages).
+          Click <strong>Reload firmware</strong> after a new release is published.
         </p>
-        <button type="button" class="secondary" id="btnFetchRelease">Refresh release info</button>
+        <button type="button" class="secondary" id="btnFetchRelease">Reload firmware</button>
       </div>
 
       <div id="panelManual" class="hidden file-grid">
@@ -92,6 +92,6 @@
     </footer>
   </div>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js?v=3"></script>
 </body>
 </html>

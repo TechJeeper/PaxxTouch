@@ -17,6 +17,12 @@
   "firmwareLocal": {
     "base": "./firmware/"
   },
+  "firmwareCdn": {
+    "owner": "TechJeeper",
+    "repo": "PaxxTouch",
+    "ref": "main",
+    "path": "docs/flasher/firmware/"
+  },
   "files": [
     { "asset": "paxxtouch-bootloader.bin", "offset": 0 },
     { "asset": "paxxtouch-partitions.bin", "offset": 32768 },
