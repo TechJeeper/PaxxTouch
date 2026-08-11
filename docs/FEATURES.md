@@ -1,5 +1,10 @@
 # PaxxTouch Feature Status
 
+## v0.2.0 — Config UI Glitch Fix & Performance Update
+
+- Chunked block blitting for display flushes (eliminates mid-frame tearing and UI glitching during typing, text cursor blinking, and WiFi status updates)
+- Dynamic render mode stride and memory offset calculation for LVGL 9 display flush callback
+
 ## v0.1.9 — Remote Screen responsiveness and lag fix
 
 - Triple Buffering pipeline (eliminates frame corruption and decode failures during fast polling)
