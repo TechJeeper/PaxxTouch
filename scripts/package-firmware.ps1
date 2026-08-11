@@ -12,12 +12,10 @@ $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $BuildDir = Join-Path $Root ".pio\build\$Env"
 $OutDir = Join-Path $Root "dist\firmware"
 
-if (-not (Test-Path (Join-Path $BuildDir "firmware.bin"))) {
-    Write-Host "Building firmware ($Env)..."
-    Push-Location $Root
-    python -m platformio run -e $Env
-    Pop-Location
-}
+Write-Host "Building firmware ($Env)..."
+Push-Location $Root
+python -m platformio run -e $Env
+Pop-Location
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 

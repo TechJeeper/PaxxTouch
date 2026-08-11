@@ -196,6 +196,8 @@ inline uint16_t pt_rgb565_swap_rb(uint16_t c) {
  * @param area Pointer to the area to be updated.
  * @param px_map Pointer to the pixel map data.
  */
+static bool pt_is_full_render = false;
+
 inline void pt_disp_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
   const int32_t x1 = area->x1;
@@ -207,7 +209,7 @@ inline void pt_disp_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px
     return;
   }
 
-  const bool is_full_mode = (lv_display_get_render_mode(disp) == LV_DISPLAY_RENDER_MODE_FULL);
+  const bool is_full_mode = pt_is_full_render;
   const uint32_t screen_w = lv_display_get_horizontal_resolution(disp);
   const uint32_t stride = is_full_mode ? screen_w : w;
   const uint16_t *src_base = reinterpret_cast<const uint16_t *>(px_map) +
@@ -290,7 +292,7 @@ inline void pt_setup_display(PT_LVGL_render_method_t mode = (PT_LVGL_render_meth
 
   // Panel bring-up
   pt_gfx.begin();
-  pt_gfx.draw16bitRGBBitmap(0, 0, boot_logo_rgb565, 800, 480);
+  pt_gfx.draw16bitRGBBitmap(0, 0, const_cast<uint16_t *>(boot_logo_rgb565), 800, 480);
 
   // Touch
   pt_touchpanel.begin(GT911_ADDR1);
@@ -322,6 +324,7 @@ inline void pt_setup_display(PT_LVGL_render_method_t mode = (PT_LVGL_render_meth
     pt_disp_draw_buf = alloc_buf(bufSize, true);
     if (pt_disp_draw_buf)
     {
+      pt_is_full_render = true;
       disp = lv_display_create(screenWidth, screenHeight);
       lv_display_set_flush_cb(disp, pt_disp_flush);
       lv_display_set_buffers(disp, pt_disp_draw_buf, NULL, bufSize * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_FULL);
@@ -339,6 +342,7 @@ inline void pt_setup_display(PT_LVGL_render_method_t mode = (PT_LVGL_render_meth
     }
     if (pt_disp_draw_buf && pt_disp_draw_buf2)
     {
+      pt_is_full_render = true;
       disp = lv_display_create(screenWidth, screenHeight);
       lv_display_set_flush_cb(disp, pt_disp_flush);
       lv_display_set_buffers(disp, pt_disp_draw_buf, pt_disp_draw_buf2, bufSize * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_FULL);
