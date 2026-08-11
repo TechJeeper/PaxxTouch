@@ -189,6 +189,21 @@ input[type="file"] {
   max-width: 100%;
 }
 
+.disclaimer {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warn);
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.disclaimer strong {
+  color: var(--text);
+}
+
 footer {
   margin-top: 32px;
   text-align: center;
