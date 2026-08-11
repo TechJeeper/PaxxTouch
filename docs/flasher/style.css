@@ -42,6 +42,20 @@ header p {
   color: var(--muted);
 }
 
+.header-links {
+  margin-top: 8px !important;
+  font-size: 0.9rem;
+}
+
+.header-links a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.header-links a:hover {
+  text-decoration: underline;
+}
+
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
