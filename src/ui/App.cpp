@@ -69,6 +69,12 @@ void PaxxApp::begin() {
     }
 
     ota_.begin("paxxtouch");
+    paxx_ui_refresh();
+    if (!activeScreen_) {
+        Serial.println("[UI] fallback: no active screen");
+        showWifi();
+        paxx_ui_refresh();
+    }
 }
 
 void PaxxApp::syncServices() {
@@ -481,6 +487,7 @@ void PaxxApp::showScreen(lv_obj_t *screen, const char *tickKind) {
 #ifndef PAXX_REMOTE_ONLY
     refreshActiveScreen(moonraker_.status());
 #endif
+    paxx_ui_refresh();
 }
 
 void PaxxApp::showHome() {

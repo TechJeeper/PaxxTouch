@@ -1,5 +1,10 @@
 # PaxxTouch Feature Status
 
+## v0.1.7 — LVGL 9 timer API and UI refresh
+
+- Use `lv_timer_handler()` (LVGL 9) instead of deprecated `lv_task_handler()`
+- Loading spinner and form layout polish
+
 ## v0.1.6 — Color and UI fixes
 
 - Align JPEG decode byte order with PNG (fixes intermittent red/blue swap on remote mirror)

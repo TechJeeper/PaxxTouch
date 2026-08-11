@@ -26,3 +26,6 @@ void paxx_style_form_screen(lv_obj_t *screen);
 void paxx_set_form_width(lv_obj_t *obj);
 
 constexpr int kPaxxFormWidth = 736;
+
+/** Pump LVGL once so the display updates (call after showing UI, before blocking work). */
+void paxx_ui_refresh();

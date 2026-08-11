@@ -70,8 +70,9 @@ void paxx_spinner_anim(void *obj, int32_t v) {
 }
 
 static void paxx_spinner_start(lv_obj_t *arc) {
-    if (!arc || lv_anim_get(arc, paxx_spinner_anim)) return;
+    if (!arc || lv_obj_get_user_data(arc)) return;
 
+    lv_obj_set_user_data(arc, reinterpret_cast<void *>(1));
     lv_anim_t anim;
     lv_anim_init(&anim);
     lv_anim_set_var(&anim, arc);
@@ -85,6 +86,7 @@ static void paxx_spinner_start(lv_obj_t *arc) {
 static void paxx_spinner_stop(lv_obj_t *arc) {
     if (!arc) return;
     lv_anim_delete(arc, paxx_spinner_anim);
+    lv_obj_set_user_data(arc, nullptr);
 }
 
 lv_obj_t *paxx_create_loading_arc(lv_obj_t *parent) {
@@ -151,4 +153,8 @@ void paxx_style_form_screen(lv_obj_t *screen) {
 void paxx_set_form_width(lv_obj_t *obj) {
     if (!obj) return;
     lv_obj_set_width(obj, kPaxxFormWidth);
+}
+
+void paxx_ui_refresh() {
+    lv_timer_handler();
 }

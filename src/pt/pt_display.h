@@ -448,7 +448,7 @@ inline void pt_setup_display(PT_LVGL_render_method_t mode = (PT_LVGL_render_meth
  */
 inline void pt_loop_display()
 {
-  lv_task_handler();
+  lv_timer_handler();
 }
 
 #endif // PT_DISPLAY_H

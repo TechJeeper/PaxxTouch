@@ -1896,7 +1896,8 @@ void WifiScreen::onEnter() {
     } else {
         setStatus("Scanning…");
     }
-    scanNetworks();
+    lv_async_call(
+        [](void *p) { static_cast<WifiScreen *>(p)->scanNetworks(); }, this);
 }
 
 void WifiScreen::scanNetworks() {
@@ -1904,6 +1905,7 @@ void WifiScreen::scanNetworks() {
     scanning_ = true;
     app_->showGlobalLoading(true, "Scanning WiFi…");
     setStatus("Scanning…");
+    paxx_ui_refresh();
 
     std::vector<WifiNetwork> nets;
     app_->wifi().scan(nets);
