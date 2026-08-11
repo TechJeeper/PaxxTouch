@@ -30,6 +30,14 @@ body {
 
 header {
   margin-bottom: 24px;
+  text-align: center;
+}
+
+.header-logo {
+  display: block;
+  width: min(160px, 45vw);
+  height: auto;
+  margin: 0 auto 12px;
 }
 
 header h1 {
