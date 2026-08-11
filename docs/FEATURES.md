@@ -1,5 +1,9 @@
 # PaxxTouch Feature Status
 
+## v0.1.3 — Web flasher branding
+
+- PaxxTouch logo on web flasher page
+
 ## v0.1.2 — Display color fix
 
 - Fix red/blue channel swap on K-Touch / PandaTouch RGB565 panel (UI + remote mirror)
