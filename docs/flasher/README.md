@@ -88,6 +88,13 @@ The web flasher downloads these automatically from the **latest** release.
 - Or use Manual files mode
 - Unauthenticated GitHub API is rate-limited (60 req/hour)
 
+**Flash completes but screen stays blank / device dead**
+
+- Hard refresh (Ctrl+Shift+R) — v6+ preserves PlatformIO flash headers instead of forcing 16MB
+- Click **Reload firmware** so bundled bins match the latest build (stale CDN bins can differ from `pio upload`)
+- Recover with CLI: `python -m platformio run -e paxxtouch-remote -t upload --upload-port COMx`
+- If still blank after web flash, use Manual files mode with bins from `.pio/build/paxxtouch-remote/`
+
 **Flash fails mid-way (`status 201` or seq failed)**
 
 - Hard refresh the flasher page (Ctrl+Shift+R) to get the latest settings

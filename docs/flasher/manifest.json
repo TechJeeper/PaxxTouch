@@ -9,9 +9,9 @@
     "repo": "PaxxTouch"
   },
   "flash": {
-    "mode": "qio",
-    "freq": "80m",
-    "size": "16MB",
+    "mode": "keep",
+    "freq": "keep",
+    "size": "keep",
     "compress": false,
     "eraseAll": true
   },

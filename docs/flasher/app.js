@@ -1,6 +1,6 @@
 import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.6.1/+esm";
 
-const FLASHER_VERSION = 5;
+const FLASHER_VERSION = 6;
 
 const $ = (id) => document.getElementById(id);
 
@@ -256,15 +256,18 @@ async function flashDevice() {
     const compress = flash.compress === true;
     if (eraseAll) log("Full chip erase enabled (recommended after a failed flash).");
     if (!compress) log("Uncompressed flash (more reliable over CH340 USB).");
+    // Do not patch bootloader flash headers — bins are built by PlatformIO with correct
+    // qio_opi settings. Overriding mode/size (e.g. 16MB) breaks boot on K-Touch / PandaTouch.
+    log("Preserving flash headers embedded in bootloader (PlatformIO build).");
     setStatus("Flashing… do not unplug the USB cable.");
 
     await state.esploader.writeFlash({
       fileArray,
       eraseAll,
       compress,
-      flashMode: flash.mode,
-      flashFreq: flash.freq,
-      flashSize: flash.size,
+      flashMode: "keep",
+      flashFreq: "keep",
+      flashSize: "keep",
       reportProgress: (_fileIndex, written, total) => {
         const pct = total ? (written / total) * 100 : 0;
         setProgress(pct, true);
