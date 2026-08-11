@@ -35,10 +35,6 @@ ImageFit fitImageInArea(int imgW, int imgH, int areaW, int areaH) {
     return fit;
 }
 
-void remoteSpinnerAnim(void *obj, int32_t v) {
-    lv_arc_set_end_angle(static_cast<lv_obj_t *>(obj), static_cast<int>(v));
-}
-
 uint32_t parseHexColor(const char *hex, uint32_t fallback = 0x888888) {
     if (!hex || !hex[0]) return fallback;
     const char *p = hex[0] == '#' ? hex + 1 : hex;
@@ -636,39 +632,31 @@ void RemoteScreenView::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_set_style_text_align(statusLbl_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     paxx_disable_input(statusLbl_);
 
-    loadingArc_ = lv_arc_create(canvasArea_);
-    lv_obj_set_size(loadingArc_, 52, 52);
+    loadingArc_ = paxx_create_loading_arc(canvasArea_);
     lv_obj_align(loadingArc_, LV_ALIGN_CENTER, 0, -24);
-    lv_arc_set_rotation(loadingArc_, 270);
-    lv_arc_set_bg_angles(loadingArc_, 0, 360);
-    lv_arc_set_angles(loadingArc_, 0, 90);
-    lv_obj_set_style_arc_width(loadingArc_, 6, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_width(loadingArc_, 6, LV_PART_MAIN);
-    lv_obj_set_style_arc_color(loadingArc_, lv_color_hex(0x4DA3FF), LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(loadingArc_, lv_color_hex(0x303030), LV_PART_MAIN);
-    lv_obj_remove_style(loadingArc_, NULL, LV_PART_KNOB);
-    lv_obj_remove_flag(loadingArc_, LV_OBJ_FLAG_CLICKABLE);
-    paxx_disable_input(loadingArc_);
-    lv_obj_add_flag(loadingArc_, LV_OBJ_FLAG_HIDDEN);
 
-    lv_anim_t anim;
-    lv_anim_init(&anim);
-    lv_anim_set_var(&anim, loadingArc_);
-    lv_anim_set_exec_cb(&anim, remoteSpinnerAnim);
-    lv_anim_set_values(&anim, 30, 390);
-    lv_anim_set_time(&anim, 900);
-    lv_anim_set_repeat_count(&anim, LV_ANIM_REPEAT_INFINITE);
-    lv_anim_start(&anim);
+    touchSpinner_ = lv_arc_create(canvasArea_);
+    lv_obj_set_size(touchSpinner_, 36, 36);
+    lv_arc_set_rotation(touchSpinner_, 270);
+    lv_arc_set_bg_angles(touchSpinner_, 0, 360);
+    lv_arc_set_angles(touchSpinner_, 0, 90);
+    lv_obj_set_style_arc_width(touchSpinner_, 4, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_width(touchSpinner_, 4, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(touchSpinner_, lv_color_hex(0x4DA3FF), LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(touchSpinner_, lv_color_hex(0x303030), LV_PART_MAIN);
+    lv_obj_remove_style(touchSpinner_, NULL, LV_PART_KNOB);
+    lv_obj_remove_flag(touchSpinner_, LV_OBJ_FLAG_CLICKABLE);
+    paxx_disable_input(touchSpinner_);
+    lv_obj_add_flag(touchSpinner_, LV_OBJ_FLAG_HIDDEN);
 
-    touchMarker_ = lv_obj_create(canvasArea_);
-    lv_obj_set_size(touchMarker_, 22, 22);
-    lv_obj_set_style_radius(touchMarker_, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(touchMarker_, lv_color_hex(0x4DA3FF), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(touchMarker_, LV_OPA_60, LV_PART_MAIN);
-    lv_obj_set_style_border_width(touchMarker_, 2, LV_PART_MAIN);
-    lv_obj_set_style_border_color(touchMarker_, lv_color_white(), LV_PART_MAIN);
-    lv_obj_add_flag(touchMarker_, LV_OBJ_FLAG_HIDDEN);
-    paxx_disable_input(touchMarker_);
+    lv_anim_t touchAnim;
+    lv_anim_init(&touchAnim);
+    lv_anim_set_var(&touchAnim, touchSpinner_);
+    lv_anim_set_exec_cb(&touchAnim, paxx_spinner_anim);
+    lv_anim_set_values(&touchAnim, 30, 390);
+    lv_anim_set_time(&touchAnim, 600);
+    lv_anim_set_repeat_count(&touchAnim, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_start(&touchAnim);
 
     image_ = lv_image_create(canvasArea_);
     lv_obj_center(image_);
@@ -698,17 +686,23 @@ bool mapRemoteTouchToU1(lv_obj_t *canvasArea, int frameW, int frameH, lv_point_t
 
 }  // namespace
 
-void RemoteScreenView::showTouchIndicator(lv_point_t pt) {
-    if (!touchMarker_ || !canvasArea_) return;
+void RemoteScreenView::showTouchSpinner(lv_point_t pt) {
+    if (!touchSpinner_ || !canvasArea_) return;
 
     lv_area_t canvas{};
     lv_obj_get_coords(canvasArea_, &canvas);
-    const int x = pt.x - canvas.x1 - 11;
-    const int y = pt.y - canvas.y1 - 11;
-    lv_obj_set_pos(touchMarker_, x, y);
-    lv_obj_move_foreground(touchMarker_);
-    lv_obj_clear_flag(touchMarker_, LV_OBJ_FLAG_HIDDEN);
-    touchMarkerHideMs_ = millis() + 600;
+    const int x = pt.x - canvas.x1 - 18;
+    const int y = pt.y - canvas.y1 - 18;
+    lv_obj_set_pos(touchSpinner_, x, y);
+    lv_obj_move_foreground(touchSpinner_);
+    lv_obj_clear_flag(touchSpinner_, LV_OBJ_FLAG_HIDDEN);
+    touchSpinnerHideMs_ = 0;
+}
+
+void RemoteScreenView::hideTouchSpinner() {
+    if (!touchSpinner_) return;
+    lv_obj_add_flag(touchSpinner_, LV_OBJ_FLAG_HIDDEN);
+    touchSpinnerHideMs_ = 0;
 }
 
 void RemoteScreenView::handleCanvasTouch(lv_event_t *e) {
@@ -719,7 +713,7 @@ void RemoteScreenView::handleCanvasTouch(lv_event_t *e) {
     if (!indev) return;
     lv_point_t pt{};
     lv_indev_get_point(indev, &pt);
-    showTouchIndicator(pt);
+    showTouchSpinner(pt);
 
     if (frameW_ <= 0 || frameH_ <= 0) return;
 
@@ -739,6 +733,7 @@ void RemoteScreenView::handleCanvasTouch(lv_event_t *e) {
         action = RemoteTouchAction::Up;
         lastSentU1X_ = u1x;
         lastSentU1Y_ = u1y;
+        touchSpinnerHideMs_ = now + 900;
     } else {
         if (now - lastTouchSendMs_ < 20) return;
         if (lastSentU1X_ >= 0 && abs(u1x - lastSentU1X_) < 4 && abs(u1y - lastSentU1Y_) < 4) return;
@@ -751,15 +746,8 @@ void RemoteScreenView::handleCanvasTouch(lv_event_t *e) {
 }
 
 void RemoteScreenView::setLoadingVisible(bool visible, const char *text) {
-    if (loadingArc_) {
-        if (visible) lv_obj_clear_flag(loadingArc_, LV_OBJ_FLAG_HIDDEN);
-        else lv_obj_add_flag(loadingArc_, LV_OBJ_FLAG_HIDDEN);
-    }
-    if (visible) {
-        if (loadingArc_) lv_obj_move_foreground(loadingArc_);
-        if (statusLbl_) lv_obj_move_foreground(statusLbl_);
-    }
-    updateStatusLine(visible ? (text && text[0] ? text : "Loading…") : "");
+    const char *msg = visible ? ((text && text[0]) ? text : "Loading…") : nullptr;
+    paxx_set_loading_visible(loadingArc_, statusLbl_, visible, msg);
 }
 
 void RemoteScreenView::updateStatusLine(const char *text) {
@@ -800,7 +788,6 @@ void RemoteScreenView::onEnter() {
 
     app_->syncServices();
     app_->remoteScreen().resetProbe();
-    app_->applyProfile();
     setLoadingVisible(true, "Connecting to U1 remote screen…");
 }
 
@@ -823,9 +810,8 @@ void RemoteScreenView::onTick() {
     if (!app_->config().remoteScreenEnabled) return;
     if (!WiFi.isConnected()) return;
 
-    if (touchMarker_ && touchMarkerHideMs_ != 0 && millis() > touchMarkerHideMs_) {
-        lv_obj_add_flag(touchMarker_, LV_OBJ_FLAG_HIDDEN);
-        touchMarkerHideMs_ = 0;
+    if (touchSpinner_ && touchSpinnerHideMs_ != 0 && millis() > touchSpinnerHideMs_) {
+        hideTouchSpinner();
     }
 
     const unsigned long sinceTouch = millis() - lastTouchActivityMs_;
@@ -854,7 +840,11 @@ void RemoteScreenView::onTick() {
     int h = 0;
     const unsigned long now = millis();
     const bool touchActive = sinceTouch < 500;
+#if PAXX_REMOTE_ONLY
+    const unsigned long blitInterval = touchActive ? 16UL : 33UL;
+#else
     const unsigned long blitInterval = touchActive ? 16UL : 66UL;
+#endif
     if (lastBlitMs_ == 0 || now - lastBlitMs_ >= blitInterval) {
         if (app_->remoteScreen().pollFrame(buf, format, w, h) && buf) {
             const bool layoutChanged = (frameBuf_ == nullptr) || frameW_ != w || frameH_ != h;
@@ -863,16 +853,19 @@ void RemoteScreenView::onTick() {
             frameFormat_ = format;
             frameW_ = w;
             frameH_ = h;
+            hideTouchSpinner();
             if (layoutChanged) {
                 ImageDecoder::bindLvImage(imageDsc_, image_, frameBuf_, frameFormat_, w, h,
                                           lv_obj_get_width(canvasArea_), lv_obj_get_height(canvasArea_));
-                if (touchMarker_) lv_obj_move_foreground(touchMarker_);
             } else {
                 imageDsc_.data = frameBuf_;
                 lv_image_set_src(image_, &imageDsc_);
                 lv_obj_invalidate(image_);
             }
             lv_obj_move_foreground(image_);
+            if (touchSpinner_ && !lv_obj_has_flag(touchSpinner_, LV_OBJ_FLAG_HIDDEN)) {
+                lv_obj_move_foreground(touchSpinner_);
+            }
             setLoadingVisible(false);
             lastFetchMs_ = now;
             failCount_ = 0;
@@ -1585,7 +1578,12 @@ void SetupScreen::toggleAdvanced() {
     }
 }
 
+void SetupScreen::setLoadingVisible(bool visible, const char *text) {
+    paxx_set_loading_visible(loadingArc_, loadingLbl_, visible, text);
+}
+
 void SetupScreen::onEnter() {
+    setLoadingVisible(false);
     updateNavBack();
 #if PAXX_REMOTE_ONLY
     if (advancedPanel_) {
@@ -1597,7 +1595,6 @@ void SetupScreen::onEnter() {
     }
     if (hostTa_) {
         PaxxKeyboard::promptFor(hostTa_);
-        lv_obj_scroll_to_view(hostTa_, LV_ANIM_OFF);
     }
     if (hintLbl_) {
         char urlHint[96];
@@ -1616,10 +1613,19 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_set_style_border_width(screen_, 0, LV_PART_MAIN);
     lv_obj_add_flag(screen_, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_AUTO);
-    lv_obj_set_style_pad_bottom(screen_, 220, LV_PART_MAIN);
+    lv_obj_set_style_pad_bottom(screen_, 180, LV_PART_MAIN);
 
 #if PAXX_REMOTE_ONLY
     paxx_create_nav_bar(screen_, "Printer Setup", paxx_back_remote_cb, app, app->isDark(), &navBackBtn_);
+
+    loadingArc_ = paxx_create_loading_arc(screen_);
+    loadingLbl_ = lv_label_create(screen_);
+    lv_obj_align(loadingLbl_, LV_ALIGN_CENTER, 0, 32);
+    lv_obj_set_width(loadingLbl_, LV_PCT(95));
+    lv_label_set_long_mode(loadingLbl_, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(loadingLbl_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_add_flag(loadingLbl_, LV_OBJ_FLAG_HIDDEN);
+    paxx_disable_input(loadingLbl_);
 
     const PrinterProfile &p = activeProfile(app->config());
     int y = 56;
@@ -1631,7 +1637,7 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_textarea_set_one_line(hostTa_, true);
     lv_textarea_set_placeholder_text(hostTa_, "Printer IP address (e.g. 192.168.1.100)");
     if (p.host[0]) lv_textarea_set_text(hostTa_, p.host);
-    PaxxKeyboard::attach(hostTa_, false);
+    PaxxKeyboard::attach(hostTa_, PaxxKbMode::Number);
 
     hintLbl_ = lv_label_create(screen_);
     lv_obj_set_width(hintLbl_, LV_PCT(92));
@@ -1665,19 +1671,19 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_set_style_pad_row(advancedPanel_, 8, LV_PART_MAIN);
     lv_obj_add_flag(advancedPanel_, LV_OBJ_FLAG_HIDDEN);
 
-    auto addAdvField = [&](const char *ph, lv_obj_t **ta, const char *val, bool password = false) {
+    auto addAdvField = [&](const char *ph, lv_obj_t **ta, const char *val, PaxxKbMode mode = PaxxKbMode::Text) {
         *ta = lv_textarea_create(advancedPanel_);
         lv_obj_set_width(*ta, LV_PCT(100));
         lv_textarea_set_one_line(*ta, true);
         lv_textarea_set_placeholder_text(*ta, ph);
         if (val && val[0]) lv_textarea_set_text(*ta, val);
-        PaxxKeyboard::attach(*ta, password);
+        PaxxKeyboard::attach(*ta, mode);
     };
 
-    addAdvField("Moonraker port (7125)", &portTa_, String(p.moonrakerPort ? p.moonrakerPort : 7125).c_str());
+    addAdvField("Moonraker port (7125)", &portTa_, String(p.moonrakerPort ? p.moonrakerPort : 7125).c_str(), PaxxKbMode::Number);
     addAdvField("API key (optional)", &keyTa_, p.apiKey);
     addAdvField("Username (optional)", &userTa_, p.username);
-    addAdvField("Password (optional)", &passTa_, p.password, true);
+    addAdvField("Password (optional)", &passTa_, p.password, PaxxKbMode::Password);
     nameTa_ = nullptr;
 
     lv_obj_t *save = lv_btn_create(screen_);
@@ -1700,6 +1706,7 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
         prof.useAuth = prof.username[0] != '\0' || prof.apiKey[0] != '\0';
         if (a->config().profileCount <= 0) a->config().profileCount = 1;
         a->saveConfig();
+        a->setup().setLoadingVisible(true, "Connecting to printer…");
         a->applyProfile();
         a->showRemote();
     }, LV_EVENT_CLICKED, app);
@@ -1709,22 +1716,22 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
 
     const PrinterProfile &p = activeProfile(app->config());
     int y = 56;
-    auto addField = [&](const char *ph, lv_obj_t **ta, const char *val, bool password = false) {
+    auto addField = [&](const char *ph, lv_obj_t **ta, const char *val, PaxxKbMode mode = PaxxKbMode::Text) {
         *ta = lv_textarea_create(screen_);
         lv_obj_set_width(*ta, LV_PCT(92));
         lv_obj_align(*ta, LV_ALIGN_TOP_MID, 0, y);
         y += 48;
         lv_textarea_set_placeholder_text(*ta, ph);
         if (val && val[0]) lv_textarea_set_text(*ta, val);
-        PaxxKeyboard::attach(*ta, password);
+        PaxxKeyboard::attach(*ta, mode);
     };
 
     addField("Profile name", &nameTa_, p.name);
-    addField("Printer IP", &hostTa_, p.host);
-    addField("Moonraker port", &portTa_, String(p.moonrakerPort).c_str());
+    addField("Printer IP", &hostTa_, p.host, PaxxKbMode::Number);
+    addField("Moonraker port", &portTa_, String(p.moonrakerPort).c_str(), PaxxKbMode::Number);
     addField("API key (optional)", &keyTa_, p.apiKey);
     addField("Username (optional)", &userTa_, p.username);
-    addField("Password (optional)", &passTa_, p.password, true);
+    addField("Password (optional)", &passTa_, p.password, PaxxKbMode::Password);
 
     lv_obj_t *save = lv_btn_create(screen_);
     lv_obj_align(save, LV_ALIGN_BOTTOM_MID, 0, -12);
@@ -1752,6 +1759,23 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
 #endif
 }
 
+void WifiScreen::setLoadingVisible(bool visible, const char *text) {
+    paxx_set_loading_visible(loadingArc_, loadingLbl_, visible, text);
+}
+
+void WifiScreen::onTick() {
+    if (!app_) return;
+    if (scanning_) {
+        setLoadingVisible(true, "Scanning WiFi…");
+        return;
+    }
+    if (app_->wifi().isConnectPending()) {
+        setLoadingVisible(true, "Connecting to WiFi…");
+    } else {
+        setLoadingVisible(false);
+    }
+}
+
 void WifiScreen::updateNavBack() {
 #if PAXX_REMOTE_ONLY
     if (!navBackBtn_) return;
@@ -1773,12 +1797,21 @@ void WifiScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_set_style_border_width(screen_, 0, LV_PART_MAIN);
     lv_obj_add_flag(screen_, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scrollbar_mode(screen_, LV_SCROLLBAR_MODE_AUTO);
-    lv_obj_set_style_pad_bottom(screen_, 220, LV_PART_MAIN);
+    lv_obj_set_style_pad_bottom(screen_, 180, LV_PART_MAIN);
 #if PAXX_REMOTE_ONLY
     paxx_create_nav_bar(screen_, "WiFi Setup", paxx_back_remote_cb, app, app->isDark(), &navBackBtn_);
 #else
     paxx_create_nav_bar(screen_, "WiFi", paxx_back_home_cb, app, app->isDark(), &navBackBtn_);
 #endif
+
+    loadingArc_ = paxx_create_loading_arc(screen_);
+    loadingLbl_ = lv_label_create(screen_);
+    lv_obj_align(loadingLbl_, LV_ALIGN_CENTER, 0, 32);
+    lv_obj_set_width(loadingLbl_, LV_PCT(95));
+    lv_label_set_long_mode(loadingLbl_, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_align(loadingLbl_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_add_flag(loadingLbl_, LV_OBJ_FLAG_HIDDEN);
+    paxx_disable_input(loadingLbl_);
 
     statusLbl_ = lv_label_create(screen_);
     lv_obj_set_width(statusLbl_, LV_PCT(92));
@@ -1798,7 +1831,7 @@ void WifiScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_textarea_set_password_mode(passTa_, true);
     lv_textarea_set_one_line(passTa_, true);
     lv_textarea_set_placeholder_text(passTa_, "WiFi password");
-    PaxxKeyboard::attach(passTa_, true);
+    PaxxKeyboard::attach(passTa_, PaxxKbMode::Password);
 
     lv_obj_t *connect = lv_btn_create(screen_);
     lv_obj_set_width(connect, LV_PCT(92));
@@ -1901,10 +1934,14 @@ void WifiScreen::onEnter() {
 
 void WifiScreen::scanNetworks() {
     Serial.println("[WiFi UI] scan start");
+    scanning_ = true;
+    setLoadingVisible(true, "Scanning WiFi…");
     setStatus("Scanning…");
 
     std::vector<WifiNetwork> nets;
     app_->wifi().scan(nets);
+    scanning_ = false;
+    setLoadingVisible(false);
 
     auto ensureListed = [&](const char *ssid, int32_t rssi, bool secure) {
         if (!ssid || !ssid[0]) return;

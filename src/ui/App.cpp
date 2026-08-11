@@ -117,7 +117,6 @@ void PaxxApp::applyProfile() {
         String token;
         if (moonrakerRest_.login(token)) {
             syncServices();
-            if (remoteScreen_.isViewActive()) remoteScreen_.resetProbe();
         } else {
             Serial.println("[Remote] login failed — check username/password");
         }
@@ -224,6 +223,7 @@ void PaxxApp::loop() {
         else if (strcmp(activeTickKind_, "terminal") == 0) terminal_.onTick();
 #endif
     }
+    if (activeScreen_ == wifiScreen_.root()) wifiScreen_.onTick();
 }
 
 lv_obj_t *PaxxApp::createMenuButton(lv_obj_t *parent, const char *icon, const char *label, lv_event_cb_t cb) {
@@ -256,6 +256,19 @@ void PaxxApp::hideGearMenu() {
 void PaxxApp::onKeyboardVisibility(bool visible, void *userData) {
     auto *app = static_cast<PaxxApp *>(userData);
     if (!app) return;
+
+    lv_obj_t *formScreen = nullptr;
+    if (app->activeScreen_ == app->wifiScreen_.root() || app->activeScreen_ == app->setup_.root()) {
+        formScreen = app->activeScreen_;
+    }
+
+    if (formScreen) {
+        if (visible) {
+            lv_obj_clear_flag(formScreen, LV_OBJ_FLAG_SCROLLABLE);
+        } else {
+            lv_obj_add_flag(formScreen, LV_OBJ_FLAG_SCROLLABLE);
+        }
+    }
 
     if (visible) {
         app->hideGearMenu();
@@ -396,9 +409,7 @@ void PaxxApp::buildShell() {
     PaxxKeyboard::init(shell_);
     PaxxKeyboard::setVisibilityListener(onKeyboardVisibility, this);
     buildGearMenu();
-#if PAXX_REMOTE_ONLY
-    showRemote();
-#else
+#ifndef PAXX_REMOTE_ONLY
     showHome();
 #endif
 }

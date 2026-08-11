@@ -1,5 +1,9 @@
 # PaxxTouch Feature Status
 
+## v0.1.4 — UI polish
+
+- Theme, keyboard, and setup/remote screen layout improvements
+
 ## v0.1.3 — Web flasher branding
 
 - PaxxTouch logo on web flasher page

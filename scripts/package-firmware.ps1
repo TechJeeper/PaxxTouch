@@ -1,8 +1,8 @@
 # Package PaxxTouch build artifacts for GitHub Releases + web flasher.
-# Usage: .\scripts\package-firmware.ps1 [-Version "0.1.3"] [-Env "paxxtouch-remote"]
+# Usage: .\scripts\package-firmware.ps1 [-Version "0.1.4"] [-Env "paxxtouch-remote"]
 
 param(
-    [string]$Version = "0.1.3",
+    [string]$Version = "0.1.4",
     [ValidateSet("paxxtouch-remote", "paxxtouch")]
     [string]$Env = "paxxtouch-remote"
 )

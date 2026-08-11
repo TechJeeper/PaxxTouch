@@ -62,3 +62,55 @@ lv_obj_t *paxx_create_status_chip(lv_obj_t *parent, const char *label, lv_color_
     lv_obj_set_style_text_color(lbl, color, LV_PART_MAIN);
     return chip;
 }
+
+void paxx_spinner_anim(void *obj, int32_t v) {
+    lv_arc_set_end_angle(static_cast<lv_obj_t *>(obj), static_cast<int>(v));
+}
+
+lv_obj_t *paxx_create_loading_arc(lv_obj_t *parent) {
+    lv_obj_t *arc = lv_arc_create(parent);
+    lv_obj_set_size(arc, 52, 52);
+    lv_obj_align(arc, LV_ALIGN_CENTER, 0, -24);
+    lv_arc_set_rotation(arc, 270);
+    lv_arc_set_bg_angles(arc, 0, 360);
+    lv_arc_set_angles(arc, 0, 90);
+    lv_obj_set_style_arc_width(arc, 6, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_width(arc, 6, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(arc, lv_color_hex(0x4DA3FF), LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(arc, lv_color_hex(0x303030), LV_PART_MAIN);
+    lv_obj_remove_style(arc, NULL, LV_PART_KNOB);
+    lv_obj_remove_flag(arc, LV_OBJ_FLAG_CLICKABLE);
+    paxx_disable_input(arc);
+    lv_obj_add_flag(arc, LV_OBJ_FLAG_HIDDEN);
+
+    lv_anim_t anim;
+    lv_anim_init(&anim);
+    lv_anim_set_var(&anim, arc);
+    lv_anim_set_exec_cb(&anim, paxx_spinner_anim);
+    lv_anim_set_values(&anim, 30, 390);
+    lv_anim_set_time(&anim, 900);
+    lv_anim_set_repeat_count(&anim, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_start(&anim);
+    return arc;
+}
+
+void paxx_set_loading_visible(lv_obj_t *arc, lv_obj_t *label, bool visible, const char *text) {
+    if (arc) {
+        if (visible) {
+            lv_obj_clear_flag(arc, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_move_foreground(arc);
+        } else {
+            lv_obj_add_flag(arc, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    if (label) {
+        const bool showText = visible && text && text[0];
+        lv_label_set_text(label, showText ? text : "");
+        if (showText) {
+            lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_move_foreground(label);
+        } else if (!visible) {
+            lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+}

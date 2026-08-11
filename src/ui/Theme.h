@@ -19,3 +19,6 @@ lv_obj_t *paxx_create_nav_bar(lv_obj_t *parent, const char *title, lv_event_cb_t
                               bool dark = true, lv_obj_t **outBackBtn = nullptr);
 lv_obj_t *paxx_create_status_chip(lv_obj_t *parent, const char *label, lv_color_t color);
 void paxx_disable_input(lv_obj_t *obj);
+void paxx_spinner_anim(void *obj, int32_t v);
+lv_obj_t *paxx_create_loading_arc(lv_obj_t *parent);
+void paxx_set_loading_visible(lv_obj_t *arc, lv_obj_t *label, bool visible, const char *text = nullptr);
