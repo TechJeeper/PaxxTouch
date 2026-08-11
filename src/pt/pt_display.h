@@ -201,25 +201,30 @@ inline void pt_disp_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px
   const int32_t y1 = area->y1;
   const uint32_t w = lv_area_get_width(area);
   const uint32_t h = lv_area_get_height(area);
-  if (w == 0 || h == 0 || w > PT_LCD_H_RES) {
+  if (w == 0 || h == 0 || w > PT_LCD_H_RES || h > PT_LCD_V_RES) {
     lv_disp_flush_ready(disp);
     return;
   }
 
-  // Swap into a line buffer so we never mutate the LVGL draw buffer in place.
-  static uint16_t line_buf[PT_LCD_H_RES];
-
-  // PaxxTouch boots with PT_LVGL_RENDER_FULL_1: px_map is the full framebuffer.
+  const bool is_full_mode = (lv_display_get_render_mode(disp) == LV_DISPLAY_RENDER_MODE_FULL);
   const uint32_t screen_w = lv_display_get_horizontal_resolution(disp);
-  const uint16_t *src_base = reinterpret_cast<uint16_t *>(px_map) +
-                               static_cast<uint32_t>(y1) * screen_w + static_cast<uint32_t>(x1);
+  const uint32_t stride = is_full_mode ? screen_w : w;
+  const uint16_t *src_base = reinterpret_cast<const uint16_t *>(px_map) +
+                             (is_full_mode ? (static_cast<uint32_t>(y1) * screen_w + static_cast<uint32_t>(x1)) : 0);
 
-  for (uint32_t row = 0; row < h; ++row) {
-    const uint16_t *src_row = src_base + row * screen_w;
-    for (uint32_t col = 0; col < w; ++col) {
-      line_buf[col] = pt_rgb565_swap_rb(src_row[col]);
+  // Chunked R/B channel swapping block buffer (up to 64 lines at once).
+  static uint16_t block_buf[PT_LCD_H_RES * 64];
+
+  for (uint32_t row_offset = 0; row_offset < h; row_offset += 64) {
+    const uint32_t chunk_h = (h - row_offset < 64) ? (h - row_offset) : 64;
+    for (uint32_t r = 0; r < chunk_h; ++r) {
+      const uint16_t *src_row = src_base + (row_offset + r) * stride;
+      uint16_t *dst_row = block_buf + r * w;
+      for (uint32_t col = 0; col < w; ++col) {
+        dst_row[col] = pt_rgb565_swap_rb(src_row[col]);
+      }
     }
-    pt_gfx.draw16bitRGBBitmap(x1, y1 + static_cast<int32_t>(row), line_buf, w, 1);
+    pt_gfx.draw16bitRGBBitmap(x1, y1 + static_cast<int32_t>(row_offset), block_buf, w, chunk_h);
   }
 
   lv_disp_flush_ready(disp);
