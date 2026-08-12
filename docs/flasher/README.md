@@ -80,7 +80,7 @@ The web flasher downloads these automatically from the **latest** release.
 
 - Use a USB-C cable that supports data (not charge-only)
 - Install [CH340 driver](https://www.wch.cn/downloads/CH341SER_EXE.html) on Windows if needed
-- Hold BOOT, tap RESET, release BOOT to enter download mode
+- Reboot the device with the slider switch on the back, then connect again
 
 **GitHub release download fails**
 
@@ -101,7 +101,7 @@ The web flasher downloads these automatically from the **latest** release.
 - Keep **Erase entire flash** checked (required after a partial failed flash)
 - Use a short **data-capable USB-C cable**; avoid hubs if possible
 - K-Touch / PandaTouch use a **CH340 USB chip** — the flasher uses 115200 baud and uncompressed writes for reliability (~2–3 min)
-- Hold BOOT, tap RESET, release BOOT, then Connect USB again
+- Reboot with the slider switch on the back, then Connect USB again
 
 - Re-flash stock BTT firmware first, then PaxxTouch
 - Try including `boot_app0.bin` in the release
