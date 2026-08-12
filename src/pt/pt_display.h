@@ -164,7 +164,7 @@ inline void pt_set_backlight(uint8_t percent, bool save)
  */
 static void pt_init_backlight(uint8_t set_percent)
 {
-  // Initialize backlight at 0% to avoid the lcd reset flash
+  // Initialize backlight hardware; bring up at 0% briefly to avoid LCD reset flash.
   ledc_timer_config_t timer_config = {
       .speed_mode = LEDC_LOW_SPEED_MODE,
       .duty_resolution = LEDC_TIMER_11_BIT,
@@ -185,23 +185,20 @@ static void pt_init_backlight(uint8_t set_percent)
 
   ledc_fade_func_install(0);
 
-  if (set_percent < 0)
-  {
-    set_percent = 100;
+  if (set_percent > 100) set_percent = 100;
+  pt_set_backlight(0, false);
+  if (set_percent > 0) {
     pt_set_backlight(set_percent, true);
+  } else {
+    pt_backlight_percent = 0;
   }
-  else
-  {
-    pt_backlight_percent = set_percent;
-    if (set_percent != 0)
-    {
-      pt_set_backlight(0, false);
-    }
-    else
-    {
-      pt_set_backlight(0, true);
-    }
-  }
+}
+
+/** Keep the panel lit — RGB backlight has no wake path except power cycle once off. */
+inline void pt_keep_display_awake()
+{
+  if (pt_backlight_percent < 1) pt_backlight_percent = 100;
+  pt_set_backlight(pt_backlight_percent, false);
 }
 
 /* =========================
@@ -268,6 +265,8 @@ inline void pt_touchpad_read(lv_indev_t *indev, lv_indev_data_t *data)
   pt_touchpanel.read(); // Read touch data
   if (pt_touchpanel.isTouched)
   {
+    // Any touch restores backlight (no HW wake if PWM duty collapsed).
+    pt_keep_display_awake();
     for (int i = 0; i < pt_touchpanel.touches; i++)
     {
       if (i == 0)
@@ -307,10 +306,9 @@ inline void pt_setup_display(PT_LVGL_render_method_t mode = (PT_LVGL_render_meth
   digitalWrite(PT_LCD_RESET_PIN, 1);
   delay(10);
 
-  // Backlight setup
-  pt_init_backlight(100); // Set backlight to max brightness (100%)
-  ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, (1 << LEDC_TIMER_11_BIT) - 1);
-  ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+  // Backlight setup — stay fully on (no auto-sleep / dim path in this firmware).
+  pt_init_backlight(100);
+  pt_keep_display_awake();
 
   // Panel bring-up
   pt_gfx.begin();
@@ -503,7 +501,14 @@ inline void pt_setup_display(PT_LVGL_render_method_t mode = (PT_LVGL_render_meth
  */
 inline void pt_loop_display()
 {
+  static uint32_t lastKeepAwakeMs = 0;
   lv_timer_handler();
+  // Reassert backlight periodically so the panel cannot "go to sleep" silently.
+  const uint32_t now = millis();
+  if (now - lastKeepAwakeMs >= 3000) {
+    lastKeepAwakeMs = now;
+    pt_keep_display_awake();
+  }
 }
 
 #endif // PT_DISPLAY_H

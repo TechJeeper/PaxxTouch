@@ -1,5 +1,11 @@
 # PaxxTouch Feature Status
 
+## v0.3.1 — Keep Display Awake
+
+- Fix backlight init so brightness stays at 100% after bring-up
+- Reassert backlight every 3s in the UI loop and restore on touch
+- Disable WiFi power-save so the RGB panel does not stall / appear asleep
+
 ## v0.3.0 — Multi-Printer Manager
 
 - **Printer Manager** (gear / settings): onboard up to **8** printers in a **2x4** grid, each with a display name + IP
