@@ -224,35 +224,13 @@ ol.steps li { margin-bottom: 8px; }
   background: #0b1220;
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  padding: 16px;
+  text-align: center;
 }
 
 .feature-grid strong {
   color: var(--text);
   font-size: 0.95rem;
-}
-
-.feature-grid span {
-  color: var(--muted);
-  font-size: 0.88rem;
-}
-
-.feature-grid code {
-  font-size: 0.82em;
-  color: #cbd5e1;
-}
-
-.features-note {
-  margin: 16px 0 0;
-  color: var(--muted);
-  font-size: 0.88rem;
-}
-
-.features-note a {
-  color: var(--primary);
 }
 
 .badge {
