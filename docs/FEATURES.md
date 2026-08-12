@@ -1,5 +1,14 @@
 # PaxxTouch Feature Status
 
+## v0.2.7 — WiFi UI Tearing Fix (Display Flush + Double Buffer)
+
+- Restore 16-line chunked display flushes and render-mode stride handling (fixes horizontal banding during keyboard typing and WiFi setup)
+- Re-enable double-buffered full framebuffers in PSRAM (`PT_LVGL_RENDER_FULL_2`)
+
+## v0.2.6 — Periodic Horizontal Shift Fix (SRAM Bounce Buffer)
+
+- Pass 20-line SRAM GDMA bounce buffer parameters (`bounce_buffer_size_px`) to `Arduino_ESP32RGBPanel` in the Arduino ESP32 core 2.x branch, insulating the LCD controller from CPU PSRAM writes and eliminating 500ms horizontal shifting
+
 ## v0.2.5 — Restored Working Display Pipeline & /screen/ Endpoint
 
 - Restore working v0.1.9 display flush pipeline and single full framebuffer mode (`PT_LVGL_RENDER_FULL_1`)

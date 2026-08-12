@@ -12,7 +12,7 @@ void setup() {
 #else
     Serial.println("PaxxTouch boot");
 #endif
-    pt_setup_display(PT_LVGL_RENDER_FULL_1);
+    pt_setup_display(PT_LVGL_RENDER_FULL_2);
     Serial.println("Display ready");
     app.begin();
 }

@@ -2,7 +2,7 @@
 #include "moonraker/MoonrakerRest.h"
 
 #ifndef PAXXTOUCH_VERSION
-#define PAXXTOUCH_VERSION "0.2.5"
+#define PAXXTOUCH_VERSION "0.2.7"
 #endif
 
 namespace {
