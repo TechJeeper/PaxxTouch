@@ -1,8 +1,8 @@
 # Package PaxxTouch build artifacts for GitHub Releases + web flasher.
-# Usage: .\scripts\package-firmware.ps1 [-Version "0.2.9"] [-Env "paxxtouch-remote-arduino-3x"]
+# Usage: .\scripts\package-firmware.ps1 [-Version "0.3.0"] [-Env "paxxtouch-remote-arduino-3x"]
 
 param(
-    [string]$Version = "0.2.9",
+    [string]$Version = "0.3.0",
     [ValidateSet("paxxtouch-remote-arduino-3x", "paxxtouch-remote", "paxxtouch")]
     [string]$Env = "paxxtouch-remote-arduino-3x"
 )

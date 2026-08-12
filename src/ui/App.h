@@ -274,10 +274,30 @@ private:
     lv_obj_t *hintLbl_ = nullptr;
 };
 
+class PrinterManagerScreen {
+public:
+    void create(PaxxApp *app, lv_obj_t *parent);
+    void onEnter();
+    void rebuildList();
+    lv_obj_t *root() const { return screen_; }
+private:
+    struct RowCtx {
+        PaxxApp *app = nullptr;
+        int index = -1;
+    };
+
+    PaxxApp *app_ = nullptr;
+    lv_obj_t *screen_ = nullptr;
+    lv_obj_t *list_ = nullptr;
+    lv_obj_t *hintLbl_ = nullptr;
+    std::vector<RowCtx> rowCtxs_;
+};
+
 class SetupScreen {
 public:
     void create(PaxxApp *app, lv_obj_t *parent);
     void onEnter();
+    void loadFromActiveProfile();
     lv_obj_t *root() const { return screen_; }
     lv_obj_t *hostInput() const { return hostTa_; }
     lv_obj_t *portInput() const { return portTa_; }
@@ -351,12 +371,18 @@ public:
     void applyProfile();
     void reconnectPrinter();
     void syncServices();
+    void clearPrinterRuntimeContext();
+    void switchActivePrinter(int index);
+    bool addPrinterProfile();
+    bool removePrinterProfile(int index);
+    void editPrinterProfile(int index);
     void ensureMoonrakerRest();
     bool sendGcode(const char *script);
 
     void showRemote();
     void showSettings();
     void showSetup();
+    void showPrinterManager();
     void showWifi();
 #if !PAXX_REMOTE_ONLY
     void showHome();
@@ -377,6 +403,7 @@ public:
 
     SettingsScreen &settings() { return settings_; }
     SetupScreen &setup() { return setup_; }
+    PrinterManagerScreen &printerManager() { return printerManager_; }
     WifiScreen &wifiScreen() { return wifiScreen_; }
 #if !PAXX_REMOTE_ONLY
     HomeScreen &home() { return home_; }
@@ -421,6 +448,7 @@ private:
     RemoteScreenView remote_;
     SettingsScreen settings_;
     SetupScreen setup_;
+    PrinterManagerScreen printerManager_;
     WifiScreen wifiScreen_;
 #if !PAXX_REMOTE_ONLY
     HomeScreen home_;

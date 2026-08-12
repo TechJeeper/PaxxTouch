@@ -1,4 +1,4 @@
-# PaxxTouch v0.2.9
+# PaxxTouch v0.3.0
 
 Custom firmware for **BIGTREETECH K-Touch** and **PandaTouch** that mirrors the **Snapmaker U1** touchscreen over Wi‑Fi.
 
@@ -47,7 +47,7 @@ pio run -e paxxtouch-remote-arduino-3x -t upload --upload-port COM3
 Package bins for a GitHub Release:
 
 ```powershell
-.\scripts\package-firmware.ps1 -Version "0.2.9"
+.\scripts\package-firmware.ps1 -Version "0.3.0"
 ```
 
 Upload the files from `dist/firmware/` as release assets (see flasher docs).
@@ -61,7 +61,7 @@ pio run -e paxxtouch -t upload --upload-port COM3
 ```
 
 ```powershell
-.\scripts\package-firmware.ps1 -Version "0.2.9" -Env paxxtouch
+.\scripts\package-firmware.ps1 -Version "0.3.0" -Env paxxtouch
 ```
 This is **not** what the web flasher ships by default.
 

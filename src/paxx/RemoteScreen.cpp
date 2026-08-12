@@ -1,7 +1,6 @@
 #include "paxx/RemoteScreen.h"
 
-
-
+#include <cstring>
 #include <esp_heap_caps.h>
 
 
@@ -237,7 +236,48 @@ void RemoteScreenClient::setViewActive(bool active) {
 
 }
 
+void RemoteScreenClient::clearHostContext() {
+    const bool wasActive = viewActive_;
+    setViewActive(false);
 
+    if (touchQueue_) {
+        TouchPoint drop{};
+        while (xQueueReceive(touchQueue_, &drop, 0) == pdTRUE) {
+        }
+    }
+
+    host_[0] = '\0';
+    user_[0] = '\0';
+    pass_[0] = '\0';
+    apiKey_[0] = '\0';
+    token_[0] = '\0';
+    useAuth_ = false;
+
+    snapshotEtag_[0] = '\0';
+    snapshotError_[0] = '\0';
+    probeError_[0] = '\0';
+    probeState_ = RemoteProbeState::Idle;
+    probeStartedMs_ = 0;
+    lastProbeSnapshotLen_ = 0;
+    readyDecodeLen_ = 0;
+    frameDirty_ = false;
+    displayW_ = 0;
+    displayH_ = 0;
+    notModifiedPolls_ = 0;
+    snapshotPolls_ = 0;
+    fastPollUntilMs_ = 0;
+
+    if (displayBuf_) {
+        memset(displayBuf_, 0, static_cast<size_t>(U1_WIDTH) * U1_HEIGHT * sizeof(uint16_t));
+    }
+
+    http_.configure("", 80);
+    probeHttp_.configure("", 80);
+    touchHttp_.configure("", 80);
+
+    // Keep workers alive; caller rebinds via begin() and may reactivate the view.
+    (void)wasActive;
+}
 
 void RemoteScreenClient::queueTouch(int u1X, int u1Y, RemoteTouchAction action) {
 

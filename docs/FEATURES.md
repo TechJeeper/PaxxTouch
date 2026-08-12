@@ -1,12 +1,19 @@
 # PaxxTouch Feature Status
 
+## v0.3.0 — Multi-Printer Manager
+
+- **Printer Manager** (gear / settings): onboard up to **8** printers in a **2x4** grid, each with a display name + IP
+- Switching printers clears remote host context (etag, sockets, touch queue, frame) before reconnecting
+- Printer Setup: name field tied to IP; empty grid tiles add a new printer
+- UI strings use ASCII-only punctuation so LVGL Montserrat no longer shows missing-glyph boxes
+
 ## v0.2.9 — Minimal Remote UI + Display/WiFi Stability
 
 - Remote-only binary keeps **WiFi**, **Printer config**, **About**, and **/screen/** mirror only — full Moonraker UI (home/print/camera/files/…) is compiled out
 - Exclude `MoonrakerClient`, `CameraService`, `ThumbnailLoader`, `OtaService` from remote link
 - Defer remote workers/buffers until WiFi is connected; move image-decode stack to PSRAM
 - Arduino 3.x: **20-line** SRAM bounce + LVGL partial buffers in **PSRAM** (fixes horizontal shift; keeps internal DRAM for bounce ISR/WiFi); factory **14.8 MHz** PCLK (12 MHz white screen)
-- Boot splash: size-capped JPEG in flash (`scripts/convert_boot_bmp.py`, ≤48 KB) drawn via TJpg MCU tiles — no full-frame RGB565 RAM
+- Boot splash: size-capped JPEG in flash (`scripts/convert_boot_bmp.py`, <=48 KB) drawn via TJpg MCU tiles — no full-frame RGB565 RAM
 
 ## v0.2.7 — WiFi UI Tearing Fix (Display Flush + Double Buffer)
 

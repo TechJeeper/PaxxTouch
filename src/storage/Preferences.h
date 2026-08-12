@@ -3,7 +3,7 @@
 #include <Preferences.h>
 #include <Arduino.h>
 
-static constexpr int PAXX_MAX_PROFILES = 5;
+static constexpr int PAXX_MAX_PROFILES = 8;
 
 struct WifiConfig {
     char ssid[33];

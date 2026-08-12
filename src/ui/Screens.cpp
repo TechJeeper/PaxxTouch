@@ -11,6 +11,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <cstring>
 
 namespace {
 
@@ -521,7 +522,7 @@ void FilamentScreen::rebuildGrid(const PrinterStatus &status) {
                 break;
             }
             char buf[32];
-            snprintf(buf, sizeof(buf), "Editing T%d — pick color swatch below", tool);
+            snprintf(buf, sizeof(buf), "Editing T%d - pick color swatch below", tool);
             self->setHint(buf);
         }, LV_EVENT_CLICKED, this);
     };
@@ -538,7 +539,7 @@ void FilamentScreen::rebuildGrid(const PrinterStatus &status) {
             lastFilaments_.push_back(f);
             addSlotCard(i, false, i, f.material, f.color);
         }
-        setHint("No live filament data — showing T0–T3 defaults.");
+        setHint("No live filament data - showing T0-T3 defaults.");
         return;
     }
 
@@ -593,7 +594,7 @@ void FilamentScreen::create(PaxxApp *app, lv_obj_t *parent) {
             a->filament().setHint("Saved via Paxx filament API");
             PaxxNotify::show("Filament", "Slot updated");
         } else {
-            a->filament().setHint("Save failed — check Moonraker connection");
+            a->filament().setHint("Save failed - check Moonraker connection");
         }
     }, LV_EVENT_CLICKED, app);
     lv_label_set_text(lv_label_create(saveBtn), "Save");
@@ -757,7 +758,7 @@ void RemoteScreenView::handleCanvasTouch(lv_event_t *e) {
 }
 
 void RemoteScreenView::setLoadingVisible(bool visible, const char *text) {
-    const char *msg = visible ? ((text && text[0]) ? text : "Loading…") : nullptr;
+    const char *msg = visible ? ((text && text[0]) ? text : "Loading...") : nullptr;
     paxx_set_loading_visible(loadingArc_, statusLbl_, visible, msg);
 }
 
@@ -792,14 +793,14 @@ void RemoteScreenView::onEnter() {
 
     if (!WiFi.isConnected()) {
         // Do not start remote workers/buffers until WiFi is up (SRAM for WPA2).
-        setLoadingVisible(true, "Waiting for WiFi…");
+        setLoadingVisible(true, "Waiting for WiFi...");
         return;
     }
 
     app_->remoteScreen().setViewActive(true);
     app_->syncServices();
     app_->remoteScreen().resetProbe();
-    setLoadingVisible(true, "Connecting to U1 remote screen…");
+    setLoadingVisible(true, "Connecting to U1 remote screen...");
 }
 
 void RemoteScreenView::onLeave() {
@@ -820,7 +821,7 @@ void RemoteScreenView::releaseFrame() {
 void RemoteScreenView::onTick() {
     if (!app_->config().remoteScreenEnabled) return;
     if (!WiFi.isConnected()) {
-        setLoadingVisible(true, "Waiting for WiFi…");
+        setLoadingVisible(true, "Waiting for WiFi...");
         return;
     }
 
@@ -850,7 +851,7 @@ void RemoteScreenView::onTick() {
             connectStartedMs_ = millis();
             app_->syncServices();
             app_->remoteScreen().resetProbe();
-            setLoadingVisible(true, "Connecting to U1 remote screen…");
+            setLoadingVisible(true, "Connecting to U1 remote screen...");
         }
         return;
     }
@@ -893,7 +894,7 @@ void RemoteScreenView::onTick() {
         if (millis() - lastProbeMs_ > 8000) {
             lastProbeMs_ = millis();
             connectStartedMs_ = millis();
-            setLoadingVisible(true, "Retrying remote screen…");
+            setLoadingVisible(true, "Retrying remote screen...");
             app_->syncServices();
             app_->remoteScreen().resetProbe();
         }
@@ -913,21 +914,21 @@ void RemoteScreenView::onTick() {
         if (snapErr && snapErr[0]) {
             updateStatusLine(snapErr);
         } else {
-            updateStatusLine("Snapshot failed — enable Remote Screen on U1 and reboot");
+            updateStatusLine("Snapshot failed - enable Remote Screen on U1 and reboot");
         }
         if (millis() - lastProbeMs_ > 8000) {
             lastProbeMs_ = millis();
             connectStartedMs_ = millis();
-            setLoadingVisible(true, "Retrying remote screen…");
+            setLoadingVisible(true, "Retrying remote screen...");
             app_->remoteScreen().resetProbe();
         }
         return;
     }
 
     if (lastFetchMs_ == 0) {
-        setLoadingVisible(true, "Connecting to U1 remote screen…");
+        setLoadingVisible(true, "Connecting to U1 remote screen...");
     } else if (!frameBuf_ && millis() - lastFetchMs_ > 6000) {
-        setLoadingVisible(true, "Waiting for remote screen frames…");
+        setLoadingVisible(true, "Waiting for remote screen frames...");
     } else if (frameBuf_) {
         setLoadingVisible(false);
     }
@@ -1071,7 +1072,7 @@ void FilesScreen::refreshList() {
     if (!list_) return;
     lv_obj_clean(list_);
     fileCtxs_.clear();
-    lv_label_set_text(statusLbl_, "Loading files…");
+    lv_label_set_text(statusLbl_, "Loading files...");
     app_->ensureMoonrakerRest();
 
     app_->moonrakerRest().listFiles("gcodes", "", [this](bool ok, const std::vector<MoonrakerFileEntry> &files) {
@@ -1113,7 +1114,7 @@ void FilesScreen::refreshList() {
             }, LV_EVENT_CLICKED, this);
             if (++count >= 40) break;
         }
-        lv_label_set_text_fmt(statusLbl_, "%d printable file(s) — tap to prepare", count);
+        lv_label_set_text_fmt(statusLbl_, "%d printable file(s) - tap to prepare", count);
     });
 }
 
@@ -1173,15 +1174,15 @@ void PrintPrepareScreen::open(const char *gcodePath) {
     const char *name = strrchr(gcodePath_, '/');
     name = name ? name + 1 : gcodePath_;
     lv_label_set_text_fmt(titleLbl_, "File: %s", name);
-    lv_label_set_text(metaLbl_, "Loading metadata…");
+    lv_label_set_text(metaLbl_, "Loading metadata...");
 
     app_->ensureMoonrakerRest();
     if (!app_->moonrakerRest().getGcodeMetadata(gcodePath_, meta_)) {
-        lv_label_set_text(metaLbl_, "Could not read file metadata — using defaults");
+        lv_label_set_text(metaLbl_, "Could not read file metadata - using defaults");
         meta_.colorCount = 1;
         strlcpy(meta_.colors[0].hex, "#888888", sizeof(meta_.colors[0].hex));
     } else {
-        lv_label_set_text_fmt(metaLbl_, "~%.0f min · %d color(s) — assign each to T0–T3",
+        lv_label_set_text_fmt(metaLbl_, "~%.0f min - %d color(s) - assign each to T0-T3",
                               meta_.estimatedMinutes, meta_.colorCount);
     }
 
@@ -1272,10 +1273,10 @@ void PrintPrepareScreen::startPrintJob() {
     if (gcodePath_[0] == '\0') return;
 
     app_->ensureMoonrakerRest();
-    lv_label_set_text(hintLbl_, "Applying tool map and starting print…");
+    lv_label_set_text(hintLbl_, "Applying tool map and starting print...");
 
     if (!app_->moonrakerRest().setExtruderMapTable(toolMap_, meta_.colorCount)) {
-        lv_label_set_text(hintLbl_, "Tool map failed — check Moonraker connection");
+        lv_label_set_text(hintLbl_, "Tool map failed - check Moonraker connection");
         PaxxNotify::show("Print", "Failed to set color mapping");
         return;
     }
@@ -1421,7 +1422,7 @@ void TerminalScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_set_size(logTa_, LV_PCT(96), 300);
     lv_textarea_set_one_line(logTa_, false);
     lv_obj_add_state(logTa_, LV_STATE_DISABLED);
-    lv_textarea_set_placeholder_text(logTa_, "Console output appears here…");
+    lv_textarea_set_placeholder_text(logTa_, "Console output appears here...");
 
     cmdTa_ = lv_textarea_create(screen_);
     lv_obj_set_width(cmdTa_, LV_PCT(70));
@@ -1493,8 +1494,10 @@ void SettingsScreen::create(PaxxApp *app, lv_obj_t *parent) {
     };
 
 #if PAXX_REMOTE_ONLY
-    // About only — WiFi / Printer live in the gear menu.
-    add(LV_SYMBOL_LIST, "About", [](lv_event_t *e) {
+    add(LV_SYMBOL_LIST, "Printer Manager", [](lv_event_t *e) {
+        static_cast<PaxxApp *>(lv_event_get_user_data(e))->showPrinterManager();
+    });
+    add(LV_SYMBOL_SETTINGS, "About", [](lv_event_t *e) {
         auto *a = static_cast<PaxxApp *>(lv_event_get_user_data(e));
         char buf[160];
         snprintf(buf, sizeof(buf),
@@ -1507,7 +1510,12 @@ void SettingsScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_label_set_text(about, "PaxxTouch Remote v" PAXXTOUCH_VERSION);
 #else
     add(LV_SYMBOL_WIFI, "WiFi Setup", [](lv_event_t *e) { static_cast<PaxxApp *>(lv_event_get_user_data(e))->showWifi(); });
-    add(LV_SYMBOL_WIFI, "Printer Connection", [](lv_event_t *e) { static_cast<PaxxApp *>(lv_event_get_user_data(e))->showSetup(); });
+    add(LV_SYMBOL_LIST, "Printer Manager", [](lv_event_t *e) {
+        static_cast<PaxxApp *>(lv_event_get_user_data(e))->showPrinterManager();
+    });
+    add(LV_SYMBOL_DRIVE, "Edit Active Printer", [](lv_event_t *e) {
+        static_cast<PaxxApp *>(lv_event_get_user_data(e))->showSetup();
+    });
     add(LV_SYMBOL_SETTINGS, "Firmware Config URL", [](lv_event_t *e) {
         auto *a = static_cast<PaxxApp *>(lv_event_get_user_data(e));
         const PrinterProfile &p = activeProfile(a->config());
@@ -1527,7 +1535,7 @@ void SettingsScreen::create(PaxxApp *app, lv_obj_t *parent) {
         a->config().darkTheme = !a->config().darkTheme;
         a->saveConfig();
         PaxxTheme::apply(a->config().darkTheme);
-        a->settings().setHint("Theme updated — reopen screens to refresh");
+        a->settings().setHint("Theme updated - reopen screens to refresh");
     });
     add(LV_SYMBOL_BELL, "Toggle Notifications", [](lv_event_t *e) {
         auto *a = static_cast<PaxxApp *>(lv_event_get_user_data(e));
@@ -1535,23 +1543,13 @@ void SettingsScreen::create(PaxxApp *app, lv_obj_t *parent) {
         a->saveConfig();
         a->settings().setHint(a->config().notificationsEnabled ? "Notifications ON" : "Notifications OFF");
     });
-    add(LV_SYMBOL_REFRESH, "Switch Profile (cycle)", [](lv_event_t *e) {
-        auto *a = static_cast<PaxxApp *>(lv_event_get_user_data(e));
-        if (a->config().profileCount <= 0) return;
-        a->config().activeProfile = (a->config().activeProfile + 1) % a->config().profileCount;
-        a->saveConfig();
-        a->applyProfile();
-        char buf[64];
-        snprintf(buf, sizeof(buf), "Active: %s", activeProfile(a->config()).name);
-        a->settings().setHint(buf);
-    });
     add(LV_SYMBOL_DOWNLOAD, "OTA: ready when on WiFi", [](lv_event_t *e) {
         static_cast<PaxxApp *>(lv_event_get_user_data(e))->settings().setHint("Flash OTA via Arduino IDE or pio upload --upload-port IP");
     });
     add(LV_SYMBOL_LIST, "About", [](lv_event_t *e) {
         auto *a = static_cast<PaxxApp *>(lv_event_get_user_data(e));
         char buf[128];
-        snprintf(buf, sizeof(buf), "PaxxTouch v" PAXXTOUCH_VERSION " — Snapmaker U1 + Paxx Extended Firmware");
+        snprintf(buf, sizeof(buf), "PaxxTouch v" PAXXTOUCH_VERSION " - Snapmaker U1 + Paxx Extended Firmware");
         a->settings().setHint(buf);
     });
 
@@ -1559,6 +1557,184 @@ void SettingsScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_align(about, LV_ALIGN_BOTTOM_MID, 0, -4);
     lv_label_set_text(about, "PaxxTouch v" PAXXTOUCH_VERSION);
 #endif
+}
+
+void PrinterManagerScreen::onEnter() {
+    rebuildList();
+}
+
+void PrinterManagerScreen::rebuildList() {
+    if (!list_ || !app_) return;
+    lv_obj_clean(list_);
+    rowCtxs_.clear();
+
+    AppConfig &cfg = app_->config();
+    if (cfg.profileCount < 0) cfg.profileCount = 0;
+    if (cfg.profileCount > PAXX_MAX_PROFILES) cfg.profileCount = PAXX_MAX_PROFILES;
+    if (cfg.profileCount == 0) {
+        cfg.profileCount = 1;
+        memset(&cfg.profiles[0], 0, sizeof(cfg.profiles[0]));
+        strlcpy(cfg.profiles[0].name, "Printer 1", sizeof(cfg.profiles[0].name));
+        cfg.profiles[0].moonrakerPort = 7125;
+        cfg.activeProfile = 0;
+        app_->saveConfig();
+    }
+
+    if (hintLbl_) {
+        char hint[96];
+        snprintf(hint, sizeof(hint), "%d / %d printers - tap to switch, + to add",
+                 cfg.profileCount, PAXX_MAX_PROFILES);
+        lv_label_set_text(hintLbl_, hint);
+    }
+
+    // Always render a fixed 2x4 grid (8 slots).
+    rowCtxs_.reserve(static_cast<size_t>(PAXX_MAX_PROFILES));
+    for (int i = 0; i < PAXX_MAX_PROFILES; ++i) {
+        rowCtxs_.push_back(RowCtx{app_, i});
+    }
+
+    constexpr int kCols = 4;
+    constexpr int kGap = 10;
+    constexpr int kTileW = (kPaxxFormWidth - (kCols - 1) * kGap) / kCols;
+    constexpr int kTileH = 148;
+
+    for (int i = 0; i < PAXX_MAX_PROFILES; ++i) {
+        RowCtx *ctx = &rowCtxs_[static_cast<size_t>(i)];
+        const bool filled = (i < cfg.profileCount);
+        const bool active = filled && (i == cfg.activeProfile);
+        const PrinterProfile *p = filled ? &cfg.profiles[i] : nullptr;
+
+        lv_obj_t *tile = lv_obj_create(list_);
+        lv_obj_set_size(tile, kTileW, kTileH);
+        lv_obj_set_style_radius(tile, 10, LV_PART_MAIN);
+        lv_obj_set_style_border_width(tile, active ? 2 : 0, LV_PART_MAIN);
+        lv_obj_set_style_border_color(tile, PaxxTheme::primary(), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(tile,
+            filled ? (active ? PaxxTheme::primary() : PaxxTheme::surface(app_->isDark()))
+                   : PaxxTheme::bg(app_->isDark()),
+            LV_PART_MAIN);
+        lv_obj_set_style_pad_all(tile, 8, LV_PART_MAIN);
+        lv_obj_clear_flag(tile, LV_OBJ_FLAG_SCROLLABLE);
+        paxx_disable_input(tile);
+
+        if (!filled) {
+            lv_obj_t *addBtn = lv_btn_create(tile);
+            lv_obj_set_size(addBtn, LV_PCT(100), LV_PCT(100));
+            lv_obj_set_style_bg_opa(addBtn, LV_OPA_TRANSP, LV_PART_MAIN);
+            lv_obj_set_style_shadow_width(addBtn, 0, LV_PART_MAIN);
+            lv_obj_add_event_cb(addBtn, [](lv_event_t *e) {
+                auto *c = static_cast<RowCtx *>(lv_event_get_user_data(e));
+                if (!c || !c->app) return;
+                c->app->addPrinterProfile();
+            }, LV_EVENT_CLICKED, ctx);
+
+            lv_obj_t *plus = lv_label_create(addBtn);
+            lv_label_set_text(plus, LV_SYMBOL_PLUS);
+            lv_obj_set_style_text_font(plus, &lv_font_montserrat_20, LV_PART_MAIN);
+            lv_obj_align(plus, LV_ALIGN_CENTER, 0, -10);
+
+            lv_obj_t *addLbl = lv_label_create(addBtn);
+            lv_label_set_text(addLbl, "Add");
+            lv_obj_align(addLbl, LV_ALIGN_CENTER, 0, 22);
+            lv_obj_set_style_text_color(addLbl, PaxxTheme::muted(app_->isDark()), LV_PART_MAIN);
+            continue;
+        }
+
+        lv_obj_t *select = lv_btn_create(tile);
+        lv_obj_set_size(select, LV_PCT(100), 88);
+        lv_obj_align(select, LV_ALIGN_TOP_MID, 0, 0);
+        lv_obj_set_style_bg_opa(select, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_shadow_width(select, 0, LV_PART_MAIN);
+        lv_obj_add_event_cb(select, [](lv_event_t *e) {
+            auto *c = static_cast<RowCtx *>(lv_event_get_user_data(e));
+            if (!c || !c->app) return;
+            c->app->switchActivePrinter(c->index);
+        }, LV_EVENT_CLICKED, ctx);
+
+        lv_obj_t *nameLbl = lv_label_create(select);
+        lv_label_set_text(nameLbl, p->name[0] ? p->name : "Printer");
+        lv_label_set_long_mode(nameLbl, LV_LABEL_LONG_DOT);
+        lv_obj_set_width(nameLbl, LV_PCT(100));
+        lv_obj_set_style_text_font(nameLbl, &lv_font_montserrat_14, LV_PART_MAIN);
+        lv_obj_align(nameLbl, LV_ALIGN_TOP_LEFT, 0, 4);
+
+        lv_obj_t *hostLbl = lv_label_create(select);
+        lv_label_set_text(hostLbl, p->host[0] ? p->host : "No IP");
+        lv_label_set_long_mode(hostLbl, LV_LABEL_LONG_DOT);
+        lv_obj_set_width(hostLbl, LV_PCT(100));
+        lv_obj_set_style_text_color(hostLbl, PaxxTheme::muted(app_->isDark()), LV_PART_MAIN);
+        lv_obj_align(hostLbl, LV_ALIGN_TOP_LEFT, 0, 28);
+
+        if (active) {
+            lv_obj_t *badge = lv_label_create(select);
+            lv_label_set_text(badge, "ACTIVE");
+            lv_obj_align(badge, LV_ALIGN_BOTTOM_LEFT, 0, -2);
+        }
+
+        lv_obj_t *actions = lv_obj_create(tile);
+        lv_obj_set_size(actions, LV_PCT(100), 40);
+        lv_obj_align(actions, LV_ALIGN_BOTTOM_MID, 0, 0);
+        lv_obj_set_style_bg_opa(actions, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_border_width(actions, 0, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(actions, 0, LV_PART_MAIN);
+        lv_obj_set_flex_flow(actions, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(actions, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        paxx_disable_input(actions);
+
+        lv_obj_t *editBtn = lv_btn_create(actions);
+        lv_obj_set_size(editBtn, 44, 36);
+        lv_obj_add_event_cb(editBtn, [](lv_event_t *e) {
+            auto *c = static_cast<RowCtx *>(lv_event_get_user_data(e));
+            if (!c || !c->app) return;
+            c->app->editPrinterProfile(c->index);
+        }, LV_EVENT_CLICKED, ctx);
+        lv_label_set_text(lv_label_create(editBtn), LV_SYMBOL_EDIT);
+
+        lv_obj_t *delBtn = lv_btn_create(actions);
+        lv_obj_set_size(delBtn, 44, 36);
+        lv_obj_set_style_bg_color(delBtn, PaxxTheme::danger(), LV_PART_MAIN);
+        lv_obj_add_event_cb(delBtn, [](lv_event_t *e) {
+            auto *c = static_cast<RowCtx *>(lv_event_get_user_data(e));
+            if (!c || !c->app) return;
+            if (c->app->removePrinterProfile(c->index)) {
+                c->app->printerManager().rebuildList();
+            }
+        }, LV_EVENT_CLICKED, ctx);
+        lv_label_set_text(lv_label_create(delBtn), LV_SYMBOL_TRASH);
+    }
+}
+
+void PrinterManagerScreen::create(PaxxApp *app, lv_obj_t *parent) {
+    app_ = app;
+    screen_ = lv_obj_create(parent);
+    lv_obj_set_size(screen_, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_bg_opa(screen_, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(screen_, 0, LV_PART_MAIN);
+    paxx_style_form_screen(screen_);
+#if PAXX_REMOTE_ONLY
+    paxx_create_nav_bar(screen_, "Printer Manager", paxx_back_remote_cb, app, app->isDark());
+#else
+    paxx_create_nav_bar(screen_, "Printer Manager", paxx_back_home_cb, app, app->isDark());
+#endif
+
+    hintLbl_ = lv_label_create(screen_);
+    paxx_set_form_width(hintLbl_);
+    lv_obj_align(hintLbl_, LV_ALIGN_TOP_MID, 0, 52);
+    lv_label_set_long_mode(hintLbl_, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_color(hintLbl_, PaxxTheme::muted(app->isDark()), LV_PART_MAIN);
+
+    list_ = lv_obj_create(screen_);
+    paxx_set_form_width(list_);
+    lv_obj_set_height(list_, 320);
+    lv_obj_align(list_, LV_ALIGN_TOP_MID, 0, 80);
+    lv_obj_set_style_bg_opa(list_, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(list_, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(list_, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_row(list_, 10, LV_PART_MAIN);
+    lv_obj_set_style_pad_column(list_, 10, LV_PART_MAIN);
+    lv_obj_set_flex_flow(list_, LV_FLEX_FLOW_ROW_WRAP);
+    lv_obj_set_flex_align(list_, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_clear_flag(list_, LV_OBJ_FLAG_SCROLLABLE);
 }
 
 void SetupScreen::updateNavBack() {
@@ -1584,8 +1760,29 @@ void SetupScreen::toggleAdvanced() {
     }
 }
 
+void SetupScreen::loadFromActiveProfile() {
+    if (!app_) return;
+    const PrinterProfile &p = activeProfile(app_->config());
+    if (hostTa_) lv_textarea_set_text(hostTa_, p.host);
+    if (portTa_) {
+        char buf[8];
+        snprintf(buf, sizeof(buf), "%u", p.moonrakerPort ? p.moonrakerPort : 7125);
+        lv_textarea_set_text(portTa_, buf);
+    }
+    if (keyTa_) lv_textarea_set_text(keyTa_, p.apiKey);
+    if (userTa_) lv_textarea_set_text(userTa_, p.username);
+    if (passTa_) lv_textarea_set_text(passTa_, p.password);
+    if (nameTa_) lv_textarea_set_text(nameTa_, p.name);
+    if (hintLbl_) {
+        char urlHint[96];
+        paxxFormatScreenUrl(p.host[0] ? p.host : nullptr, urlHint, sizeof(urlHint));
+        lv_label_set_text(hintLbl_, urlHint);
+    }
+}
+
 void SetupScreen::onEnter() {
     updateNavBack();
+    loadFromActiveProfile();
 #if PAXX_REMOTE_ONLY
     if (advancedPanel_) {
         advancedVisible_ = false;
@@ -1594,14 +1791,15 @@ void SetupScreen::onEnter() {
             lv_label_set_text(lv_obj_get_child(advancedBtn_, 0), LV_SYMBOL_SETTINGS " Advanced options");
         }
     }
-    if (hostTa_) {
+    if (nameTa_) {
+        const char *curName = lv_textarea_get_text(nameTa_);
+        if (!curName || !curName[0]) {
+            PaxxKeyboard::promptFor(nameTa_);
+        } else if (hostTa_) {
+            PaxxKeyboard::promptFor(hostTa_);
+        }
+    } else if (hostTa_) {
         PaxxKeyboard::promptFor(hostTa_);
-    }
-    if (hintLbl_) {
-        char urlHint[96];
-        const char *host = app_ ? lv_textarea_get_text(hostTa_) : "";
-        paxxFormatScreenUrl(host && host[0] ? host : nullptr, urlHint, sizeof(urlHint));
-        lv_label_set_text(hintLbl_, urlHint);
     }
 #endif
 }
@@ -1619,6 +1817,16 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
 
     const PrinterProfile &p = activeProfile(app->config());
     int y = 56;
+
+    nameTa_ = lv_textarea_create(screen_);
+    paxx_set_form_width(nameTa_);
+    lv_obj_align(nameTa_, LV_ALIGN_TOP_MID, 0, y);
+    y += 52;
+    lv_textarea_set_one_line(nameTa_, true);
+    lv_textarea_set_max_length(nameTa_, sizeof(PrinterProfile::name) - 1);
+    lv_textarea_set_placeholder_text(nameTa_, "Printer name (e.g. Shop U1)");
+    if (p.name[0]) lv_textarea_set_text(nameTa_, p.name);
+    PaxxKeyboard::attach(nameTa_, PaxxKbMode::Text);
 
     hostTa_ = lv_textarea_create(screen_);
     paxx_set_form_width(hostTa_);
@@ -1663,7 +1871,7 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_add_flag(advancedPanel_, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scrollbar_mode(advancedPanel_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_scroll_dir(advancedPanel_, LV_DIR_VER);
-    lv_obj_set_height(advancedPanel_, 160);
+    lv_obj_set_height(advancedPanel_, 140);
 
     auto addAdvField = [&](const char *ph, lv_obj_t **ta, const char *val, PaxxKbMode mode = PaxxKbMode::Text) {
         *ta = lv_textarea_create(advancedPanel_);
@@ -1678,7 +1886,6 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     addAdvField("API key (optional)", &keyTa_, p.apiKey);
     addAdvField("Username (optional)", &userTa_, p.username);
     addAdvField("Password (optional)", &passTa_, p.password, PaxxKbMode::Password);
-    nameTa_ = nullptr;
 
     lv_obj_t *save = lv_btn_create(screen_);
     lv_obj_align(save, LV_ALIGN_BOTTOM_MID, 0, -12);
@@ -1690,7 +1897,13 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
             PaxxNotify::show("Printer", "Enter printer IP address");
             return;
         }
-        strlcpy(prof.name, "Printer", sizeof(prof.name));
+        const char *name = a->setup().nameInput() ? lv_textarea_get_text(a->setup().nameInput()) : nullptr;
+        const bool hostChanged = (strcmp(prof.host, host) != 0);
+        if (name && name[0]) {
+            strlcpy(prof.name, name, sizeof(prof.name));
+        } else {
+            snprintf(prof.name, sizeof(prof.name), "U1 %s", host);
+        }
         strlcpy(prof.host, host, sizeof(prof.host));
         prof.moonrakerPort = static_cast<uint16_t>(atoi(lv_textarea_get_text(a->setup().portInput())));
         if (prof.moonrakerPort == 0) prof.moonrakerPort = 7125;
@@ -1700,7 +1913,8 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
         prof.useAuth = prof.username[0] != '\0' || prof.apiKey[0] != '\0';
         if (a->config().profileCount <= 0) a->config().profileCount = 1;
         a->saveConfig();
-        a->showGlobalLoading(true, "Connecting to printer…");
+        a->showGlobalLoading(true, "Connecting to printer...");
+        if (hostChanged) a->clearPrinterRuntimeContext();
         a->applyProfile();
         a->showRemote();
         a->showGlobalLoading(false);
@@ -1733,16 +1947,24 @@ void SetupScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_add_event_cb(save, [](lv_event_t *e) {
         auto *a = static_cast<PaxxApp *>(lv_event_get_user_data(e));
         PrinterProfile &prof = activeProfile(a->config());
+        const char *host = lv_textarea_get_text(a->setup().hostInput());
+        if (!host || !host[0]) {
+            PaxxNotify::show("Printer", "Enter printer IP address");
+            return;
+        }
+        const bool hostChanged = (strcmp(prof.host, host) != 0);
         strlcpy(prof.name, lv_textarea_get_text(a->setup().nameInput()), sizeof(prof.name));
-        strlcpy(prof.host, lv_textarea_get_text(a->setup().hostInput()), sizeof(prof.host));
+        if (!prof.name[0]) snprintf(prof.name, sizeof(prof.name), "U1 %s", host);
+        strlcpy(prof.host, host, sizeof(prof.host));
         prof.moonrakerPort = static_cast<uint16_t>(atoi(lv_textarea_get_text(a->setup().portInput())));
         if (prof.moonrakerPort == 0) prof.moonrakerPort = 7125;
         strlcpy(prof.apiKey, lv_textarea_get_text(a->setup().keyInput()), sizeof(prof.apiKey));
         strlcpy(prof.username, lv_textarea_get_text(a->setup().userInput()), sizeof(prof.username));
         strlcpy(prof.password, lv_textarea_get_text(a->setup().passInput()), sizeof(prof.password));
-        prof.useAuth = prof.username[0] != '\0';
+        prof.useAuth = prof.username[0] != '\0' || prof.apiKey[0] != '\0';
         if (a->config().profileCount <= 0) a->config().profileCount = 1;
         a->saveConfig();
+        if (hostChanged) a->clearPrinterRuntimeContext();
         a->applyProfile();
         a->showHome();
     }, LV_EVENT_CLICKED, app);
@@ -1785,7 +2007,7 @@ void WifiScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_align(statusLbl_, LV_ALIGN_TOP_MID, 0, 52);
     lv_label_set_long_mode(statusLbl_, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(statusLbl_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
-    lv_label_set_text(statusLbl_, "Scanning…");
+    lv_label_set_text(statusLbl_, "Scanning...");
 
     networkList_ = lv_list_create(screen_);
     paxx_set_form_width(networkList_);
@@ -1846,8 +2068,8 @@ void WifiScreen::selectNetwork(size_t index) {
         strlcpy(app_->config().wifi.ssid, net.ssid, sizeof(app_->config().wifi.ssid));
         app_->config().wifi.password[0] = '\0';
         app_->saveConfig();
-        setStatus("Connecting…");
-        app_->showGlobalLoading(true, "Connecting to WiFi…");
+        setStatus("Connecting...");
+        app_->showGlobalLoading(true, "Connecting to WiFi...");
         app_->wifi().startConnect(net.ssid, "", 15);
         return;
     }
@@ -1870,8 +2092,8 @@ void WifiScreen::connectSelected() {
     strlcpy(app_->config().wifi.ssid, net.ssid, sizeof(app_->config().wifi.ssid));
     strlcpy(app_->config().wifi.password, lv_textarea_get_text(passTa_), sizeof(app_->config().wifi.password));
     app_->saveConfig();
-    setStatus("Connecting…");
-    app_->showGlobalLoading(true, "Connecting to WiFi…");
+    setStatus("Connecting...");
+    app_->showGlobalLoading(true, "Connecting to WiFi...");
     app_->wifi().startConnect(app_->config().wifi.ssid, app_->config().wifi.password, 15);
 }
 
@@ -1887,7 +2109,7 @@ void WifiScreen::forgetAllNetworks() {
     lv_obj_clean(networkList_);
     lv_textarea_set_text(passTa_, "");
     lv_textarea_set_placeholder_text(passTa_, "WiFi password");
-    setStatus("Networks cleared — scanning…");
+    setStatus("Networks cleared - scanning...");
     scanNetworks();
     PaxxNotify::show("WiFi", "Saved networks cleared");
 }
@@ -1900,7 +2122,7 @@ void WifiScreen::onEnter() {
     if (WiFi.isConnected()) {
         setStatus(WiFi.localIP().toString().c_str());
     } else {
-        setStatus("Scanning…");
+        setStatus("Scanning...");
     }
     lv_async_call(
         [](void *p) { static_cast<WifiScreen *>(p)->scanNetworks(); }, this);
@@ -1909,8 +2131,8 @@ void WifiScreen::onEnter() {
 void WifiScreen::scanNetworks() {
     Serial.println("[WiFi UI] scan start");
     scanning_ = true;
-    app_->showGlobalLoading(true, "Scanning WiFi…");
-    setStatus("Scanning…");
+    app_->showGlobalLoading(true, "Scanning WiFi...");
+    setStatus("Scanning...");
     paxx_ui_refresh();
 
     std::vector<WifiNetwork> nets;
@@ -1961,7 +2183,7 @@ void WifiScreen::applyNetworkList(const std::vector<WifiNetwork> &nets) {
 
     if (filtered.empty()) {
         lv_list_add_text(networkList_, "No networks found");
-        setStatus("No networks found — tap Scan again");
+        setStatus("No networks found - tap Scan again");
         lv_refr_now(NULL);
         return;
     }
@@ -1983,7 +2205,7 @@ void WifiScreen::applyNetworkList(const std::vector<WifiNetwork> &nets) {
     }
 
     char status[56];
-    snprintf(status, sizeof(status), "Found %u — tap a network", static_cast<unsigned>(filtered.size()));
+    snprintf(status, sizeof(status), "Found %u - tap a network", static_cast<unsigned>(filtered.size()));
     setStatus(status);
     lv_refr_now(NULL);
 }

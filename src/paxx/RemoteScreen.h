@@ -62,7 +62,8 @@ public:
 
     bool isViewActive() const { return viewActive_; }
 
-
+    /** Drop host-bound state (etag, sockets, queue, probe, frame) before switching printers. */
+    void clearHostContext();
 
     void queueTouch(int u1X, int u1Y, RemoteTouchAction action);
 

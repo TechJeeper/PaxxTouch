@@ -8,6 +8,7 @@
 #include "paxx/BuildConfig.h"
 #include "pt/pt_display.h"
 #include <WiFi.h>
+#include <cstring>
 
 void PaxxApp::begin() {
     PaxxPreferences::instance().load(config_);
@@ -135,7 +136,7 @@ void PaxxApp::applyProfile() {
         if (moonrakerRest_.login(token)) {
             syncServices();
         } else {
-            Serial.println("[Remote] login failed — check username/password");
+            Serial.println("[Remote] login failed - check username/password");
         }
     }
 #else
@@ -155,14 +156,14 @@ void PaxxApp::applyProfile() {
     syncServices();
 
     if (!moonrakerRest_.pingServer()) {
-        Serial.println("[Moonraker] REST unreachable — will retry; remote/camera use port 80");
+        Serial.println("[Moonraker] REST unreachable - will retry; remote/camera use port 80");
     } else {
         Serial.println("[Moonraker] REST ok");
     }
 
     String token;
     if (!moonrakerRest_.login(token) && p.useAuth) {
-        Serial.println("[Moonraker] login failed — check username/password or API key");
+        Serial.println("[Moonraker] login failed - check username/password or API key");
     }
     syncServices();
 
@@ -185,6 +186,95 @@ void PaxxApp::applyProfile() {
 
 void PaxxApp::saveConfig() {
     PaxxPreferences::instance().save(config_);
+}
+
+void PaxxApp::clearPrinterRuntimeContext() {
+    // Drop UI frame + stop remote poll/touch traffic for the outgoing host.
+    if (activeTickKind_ && strcmp(activeTickKind_, "remote") == 0) {
+        remote_.onLeave();
+        activeTickKind_ = nullptr;
+    } else {
+        remoteScreen_.setViewActive(false);
+    }
+    remoteScreen_.clearHostContext();
+#if !PAXX_REMOTE_ONLY
+    moonraker_.disconnect();
+    thumbnails_.clear();
+#endif
+}
+
+void PaxxApp::switchActivePrinter(int index) {
+    if (index < 0 || index >= config_.profileCount) return;
+    if (config_.profiles[index].host[0] == '\0') {
+        PaxxNotify::show("Printers", "Set an IP for this printer first");
+        editPrinterProfile(index);
+        return;
+    }
+
+    const bool same = (index == config_.activeProfile);
+    showGlobalLoading(true, same ? "Reconnecting..." : "Switching printer...");
+    if (!same) {
+        clearPrinterRuntimeContext();
+        config_.activeProfile = index;
+        saveConfig();
+    }
+    applyProfile();
+    showRemote();
+    showGlobalLoading(false);
+}
+
+bool PaxxApp::addPrinterProfile() {
+    if (config_.profileCount >= PAXX_MAX_PROFILES) {
+        PaxxNotify::show("Printers", "Maximum of 8 printers");
+        return false;
+    }
+    const int idx = config_.profileCount;
+    PrinterProfile &p = config_.profiles[idx];
+    memset(&p, 0, sizeof(p));
+    snprintf(p.name, sizeof(p.name), "Printer %d", idx + 1);
+    p.moonrakerPort = 7125;
+    config_.profileCount = idx + 1;
+    config_.activeProfile = idx;
+    saveConfig();
+    editPrinterProfile(idx);
+    return true;
+}
+
+bool PaxxApp::removePrinterProfile(int index) {
+    if (index < 0 || index >= config_.profileCount) return false;
+    if (config_.profileCount <= 1) {
+        PaxxNotify::show("Printers", "Keep at least one printer slot");
+        return false;
+    }
+
+    const bool removingActive = (index == config_.activeProfile);
+    if (removingActive) {
+        clearPrinterRuntimeContext();
+    }
+
+    for (int i = index; i < config_.profileCount - 1; ++i) {
+        config_.profiles[i] = config_.profiles[i + 1];
+    }
+    memset(&config_.profiles[config_.profileCount - 1], 0, sizeof(PrinterProfile));
+    config_.profileCount -= 1;
+    if (config_.activeProfile > index) {
+        config_.activeProfile -= 1;
+    } else if (config_.activeProfile >= config_.profileCount) {
+        config_.activeProfile = config_.profileCount - 1;
+    }
+    saveConfig();
+
+    if (removingActive) {
+        applyProfile();
+    }
+    return true;
+}
+
+void PaxxApp::editPrinterProfile(int index) {
+    if (index < 0 || index >= config_.profileCount) return;
+    config_.activeProfile = index;
+    saveConfig();
+    showSetup();
 }
 
 void PaxxApp::reconnectPrinter() {
@@ -321,9 +411,9 @@ void PaxxApp::buildGearMenu() {
 
     gearMenu_ = lv_obj_create(shell_);
 #if PAXX_REMOTE_ONLY
-    lv_obj_set_size(gearMenu_, 220, 148);
+    lv_obj_set_size(gearMenu_, 220, 196);
 #else
-    lv_obj_set_size(gearMenu_, 220, 108);
+    lv_obj_set_size(gearMenu_, 220, 156);
 #endif
     lv_obj_align(gearMenu_, LV_ALIGN_TOP_RIGHT, -8, 54);
     lv_obj_set_style_bg_color(gearMenu_, PaxxTheme::surface(isDark()), LV_PART_MAIN);
@@ -347,6 +437,18 @@ void PaxxApp::buildGearMenu() {
     lv_label_set_text(wifiLbl, LV_SYMBOL_WIFI "  WiFi Setup");
     lv_obj_center(wifiLbl);
 
+    lv_obj_t *printerMgrBtn = lv_btn_create(gearMenu_);
+    lv_obj_set_width(printerMgrBtn, LV_PCT(100));
+    lv_obj_set_height(printerMgrBtn, 40);
+    lv_obj_add_event_cb(printerMgrBtn, [](lv_event_t *e) {
+        auto *app = static_cast<PaxxApp *>(lv_event_get_user_data(e));
+        app->hideGearMenu();
+        app->showPrinterManager();
+    }, LV_EVENT_CLICKED, this);
+    lv_obj_t *printerMgrLbl = lv_label_create(printerMgrBtn);
+    lv_label_set_text(printerMgrLbl, LV_SYMBOL_LIST "  Printer Manager");
+    lv_obj_center(printerMgrLbl);
+
     lv_obj_t *printerBtn = lv_btn_create(gearMenu_);
     lv_obj_set_width(printerBtn, LV_PCT(100));
     lv_obj_set_height(printerBtn, 40);
@@ -356,7 +458,7 @@ void PaxxApp::buildGearMenu() {
         app->showSetup();
     }, LV_EVENT_CLICKED, this);
     lv_obj_t *printerLbl = lv_label_create(printerBtn);
-    lv_label_set_text(printerLbl, LV_SYMBOL_DRIVE "  Printer Connection");
+    lv_label_set_text(printerLbl, LV_SYMBOL_DRIVE "  Edit Active");
     lv_obj_center(printerLbl);
 
 #if PAXX_REMOTE_ONLY
@@ -369,7 +471,7 @@ void PaxxApp::buildGearMenu() {
         app->showSettings();
     }, LV_EVENT_CLICKED, this);
     lv_obj_t *settingsLbl = lv_label_create(settingsBtn);
-    lv_label_set_text(settingsLbl, LV_SYMBOL_LIST "  About");
+    lv_label_set_text(settingsLbl, LV_SYMBOL_SETTINGS "  About");
     lv_obj_center(settingsLbl);
 #endif
 
@@ -391,6 +493,7 @@ void PaxxApp::buildShell() {
 #if PAXX_REMOTE_ONLY
     remote_.create(this, content_);
     setup_.create(this, content_);
+    printerManager_.create(this, content_);
     wifiScreen_.create(this, content_);
     settings_.create(this, content_);
 #else
@@ -406,6 +509,7 @@ void PaxxApp::buildShell() {
     terminal_.create(this, content_);
     settings_.create(this, content_);
     setup_.create(this, content_);
+    printerManager_.create(this, content_);
     wifiScreen_.create(this, content_);
 #endif
 
@@ -450,6 +554,7 @@ void PaxxApp::showScreen(lv_obj_t *screen, const char *tickKind) {
 #if PAXX_REMOTE_ONLY
     lv_obj_add_flag(remote_.root(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(setup_.root(), LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(printerManager_.root(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(wifiScreen_.root(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(settings_.root(), LV_OBJ_FLAG_HIDDEN);
 #else
@@ -465,6 +570,7 @@ void PaxxApp::showScreen(lv_obj_t *screen, const char *tickKind) {
     lv_obj_add_flag(terminal_.root(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(settings_.root(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(setup_.root(), LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(printerManager_.root(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(wifiScreen_.root(), LV_OBJ_FLAG_HIDDEN);
 #endif
 
@@ -481,6 +587,7 @@ void PaxxApp::showScreen(lv_obj_t *screen, const char *tickKind) {
 #endif
     else if (screen == wifiScreen_.root()) wifiScreen_.onEnter();
     else if (screen == setup_.root()) setup_.onEnter();
+    else if (screen == printerManager_.root()) printerManager_.onEnter();
 
 #if !PAXX_REMOTE_ONLY
     refreshActiveScreen(moonraker_.status());
@@ -491,6 +598,7 @@ void PaxxApp::showScreen(lv_obj_t *screen, const char *tickKind) {
 void PaxxApp::showRemote() { showScreen(remote_.root(), "remote"); }
 void PaxxApp::showSettings() { showScreen(settings_.root()); }
 void PaxxApp::showSetup() { showScreen(setup_.root()); }
+void PaxxApp::showPrinterManager() { showScreen(printerManager_.root()); }
 void PaxxApp::showWifi() { showScreen(wifiScreen_.root()); }
 
 #if !PAXX_REMOTE_ONLY
