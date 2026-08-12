@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PaxxTouch Web Flasher</title>
-  <meta name="description" content="Flash PaxxTouch firmware to BTT K-Touch or PandaTouch from your browser.">
-  <meta name="keywords" content="PaxxTouch, BTT K-Touch, PandaTouch, Snapmaker U1, Web Flasher, Firmware, 3D Printer, Remote Screen">
+  <meta name="description" content="Flash PaxxTouch Remote v0.3.0 to BTT K-Touch or PandaTouch - U1 panel mirror with multi-printer support.">
+  <meta name="keywords" content="PaxxTouch, BTT K-Touch, PandaTouch, Snapmaker U1, Web Flasher, Firmware, 3D Printer, Remote Screen, Multi-printer">
   <meta name="author" content="TechJeeper">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://paxxtouch.techjeeper.com/flasher/">
@@ -14,14 +14,14 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://paxxtouch.techjeeper.com/flasher/">
   <meta property="og:title" content="PaxxTouch Web Flasher">
-  <meta property="og:description" content="Flash PaxxTouch firmware to BTT K-Touch or PandaTouch from your browser.">
+  <meta property="og:description" content="Flash PaxxTouch Remote to BTT K-Touch or PandaTouch - U1 panel mirror with multi-printer support.">
   <meta property="og:image" content="https://paxxtouch.techjeeper.com/flasher/PaxxTouch.svg">
 
   <!-- Twitter -->
   <meta property="twitter:card" content="summary_large_image">
   <meta property="twitter:url" content="https://paxxtouch.techjeeper.com/flasher/">
   <meta property="twitter:title" content="PaxxTouch Web Flasher">
-  <meta property="twitter:description" content="Flash PaxxTouch firmware to BTT K-Touch or PandaTouch from your browser.">
+  <meta property="twitter:description" content="Flash PaxxTouch Remote to BTT K-Touch or PandaTouch - U1 panel mirror with multi-printer support.">
   <meta property="twitter:image" content="https://paxxtouch.techjeeper.com/flasher/PaxxTouch.svg">
 
   <link rel="stylesheet" href="style.css">
@@ -31,15 +31,61 @@
   <div class="wrap">
     <header>
       <h1>PaxxTouch Web Flasher</h1>
-      <p>Flash <strong>PaxxTouch Remote</strong> to BTT K-Touch / PandaTouch — U1 panel mirror over Wi‑Fi.</p>
+      <p>Flash <strong>PaxxTouch Remote</strong> to BTT K-Touch / PandaTouch - wireless U1 panel mirror with multi-printer support.</p>
       <p><span class="badge" id="versionBadge">loading…</span></p>
       <p class="header-links">
         <a href="https://github.com/TechJeeper/PaxxTouch" target="_blank" rel="noopener">GitHub</a>
         ·
         <a href="https://github.com/TechJeeper/PaxxTouch/releases" target="_blank" rel="noopener">Releases</a>
+        ·
+        <a href="#features">Features</a>
       </p>
       <img src="PaxxTouch.svg" alt="PaxxTouch" class="header-logo" width="300" height="204">
     </header>
+
+    <section class="card" id="features">
+      <h2>Features</h2>
+      <p class="features-intro">What this firmware gives you on a K-Touch / PandaTouch:</p>
+      <ul class="feature-grid">
+        <li>
+          <strong>U1 remote mirror</strong>
+          <span>Fullscreen live view of the Snapmaker U1 panel over Wi-Fi (same <code>/screen/</code> protocol as the browser client).</span>
+        </li>
+        <li>
+          <strong>Touch forwarding</strong>
+          <span>Taps and drags on the K-Touch are sent to the printer so you can drive the U1 UI remotely.</span>
+        </li>
+        <li>
+          <strong>Multi-printer manager</strong>
+          <span>Save up to <strong>8</strong> printers in a 2x4 grid - each with a name and IP. Tap to switch; the old session is cleared before reconnecting.</span>
+        </li>
+        <li>
+          <strong>On-device Wi-Fi setup</strong>
+          <span>Scan networks, connect, and store credentials in NVS. No serial console required for day-to-day use.</span>
+        </li>
+        <li>
+          <strong>Named printer profiles</strong>
+          <span>Give each U1 a label (e.g. Shop U1) tied to its IP on the Printer Setup page.</span>
+        </li>
+        <li>
+          <strong>Boots into the mirror</strong>
+          <span>After Wi-Fi and a printer are configured, the device opens the remote panel automatically - gear menu for Wi-Fi, Printer Manager, and About.</span>
+        </li>
+        <li>
+          <strong>Auth-aware Remote Screen</strong>
+          <span>Works with optional Moonraker / nginx auth (username/password or API key) when your U1 is locked down.</span>
+        </li>
+        <li>
+          <strong>Browser flashing</strong>
+          <span>Install from Chrome or Edge over USB with Web Serial - no PlatformIO needed for end users.</span>
+        </li>
+      </ul>
+      <p class="features-note">
+        Requires a Snapmaker U1 running
+        <a href="https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware" target="_blank" rel="noopener">Paxx Extended Firmware</a>
+        with <strong>Remote Screen</strong> enabled.
+      </p>
+    </section>
 
     <section class="card">
       <h2>Requirements</h2>
@@ -75,7 +121,7 @@
         <div class="file-row"><label>boot_app0.bin @ 0xE000 (optional)</label><input type="file" id="fileBootApp0" accept=".bin"></div>
         <div class="file-row"><label>firmware.bin @ 0x10000</label><input type="file" id="fileFirmware" accept=".bin"></div>
         <p style="color:var(--muted);font-size:0.85rem;margin:8px 0 0">
-          Build with: <code>pio run -e paxxtouch-remote</code> — files in <code>.pio/build/paxxtouch-remote/</code>
+          Build with: <code>pio run -e paxxtouch-remote-arduino-3x</code> - files in <code>.pio/build/paxxtouch-remote-arduino-3x/</code>
         </p>
       </div>
     </section>
@@ -92,7 +138,7 @@
       <div class="row" style="margin-top:12px;flex-direction:column;align-items:flex-start;gap:8px">
         <label><input type="checkbox" id="optEraseAll" checked> Erase entire flash before writing (recommended)</label>
         <p style="color:var(--muted);font-size:0.85rem;margin:0">
-          Uses 115200 baud and uncompressed writes for CH340 USB bridges. Takes ~2–3 minutes — keep the cable still.
+          Uses 115200 baud and uncompressed writes for CH340 USB bridges. Takes ~2-3 minutes - keep the cable still.
         </p>
       </div>
 
@@ -115,9 +161,9 @@
       <ol class="steps">
         <li>Disconnect USB (or tap Reset if the screen stays blank).</li>
         <li>Tap the <strong>gear icon</strong> (top-right) → <strong>WiFi Setup</strong> and connect to your LAN.</li>
-        <li><strong>Gear → Printer Connection</strong> — enter Snapmaker U1 IP, Moonraker port (7125), auth if needed.</li>
+        <li><strong>Gear → Printer Manager</strong> - add a printer (name + IP), or edit the active slot. Up to 8 printers in a 2x4 grid.</li>
         <li>On the U1: enable <strong>Remote Screen</strong> in <a href="https://snapmakeru1-extended-firmware.pages.dev/remote_screen/" target="_blank" rel="noopener">firmware-config</a> and reboot if prompted.</li>
-        <li>The device opens a fullscreen mirror of the U1 panel automatically.</li>
+        <li>The device opens a fullscreen mirror of the U1 panel. Switch printers anytime from Printer Manager.</li>
       </ol>
     </section>
 
@@ -133,6 +179,6 @@
     </footer>
   </div>
 
-  <script type="module" src="app.js?v=14"></script>
+  <script type="module" src="app.js?v=15"></script>
 </body>
 </html>

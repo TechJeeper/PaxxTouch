@@ -205,6 +205,56 @@ ol.steps {
 
 ol.steps li { margin-bottom: 8px; }
 
+.features-intro {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.feature-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.feature-grid li {
+  background: #0b1220;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.feature-grid strong {
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.feature-grid span {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.feature-grid code {
+  font-size: 0.82em;
+  color: #cbd5e1;
+}
+
+.features-note {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.features-note a {
+  color: var(--primary);
+}
+
 .badge {
   display: inline-block;
   padding: 2px 8px;
@@ -264,6 +314,12 @@ footer {
 }
 
 footer a { color: var(--primary); }
+
+@media (max-width: 640px) {
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+}
 
 @media (max-width: 480px) {
   .row { flex-direction: column; align-items: stretch; }

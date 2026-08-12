@@ -15,7 +15,7 @@ PaxxTouch turns your K-Touch / PandaTouch into a **wireless remote panel** for t
 
 After Wi‑Fi and printer IP are configured, the device **boots straight into the remote mirror** — no home menu, no Moonraker dashboard.
 
-Tap the **gear icon** (top-right) for WiFi Setup, Printer Connection, and About.
+Tap the **gear icon** (top-right) for WiFi Setup, Printer Manager, and About.
 
 ## Requirements
 
