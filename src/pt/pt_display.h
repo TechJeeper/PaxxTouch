@@ -211,38 +211,30 @@ static void pt_init_backlight(uint8_t set_percent)
  * @param area Pointer to the area to be updated.
  * @param px_map Pointer to the pixel map data.
  */
-static bool pt_is_full_render = false;
-
 inline void pt_disp_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
   const int32_t x1 = area->x1;
   const int32_t y1 = area->y1;
   const uint32_t w = lv_area_get_width(area);
   const uint32_t h = lv_area_get_height(area);
-  if (w == 0 || h == 0 || w > PT_LCD_H_RES || h > PT_LCD_V_RES) {
+  if (w == 0 || h == 0 || w > PT_LCD_H_RES) {
     lv_disp_flush_ready(disp);
     return;
   }
 
-  const bool is_full_mode = pt_is_full_render;
+  // Swap into a line buffer so we never mutate the LVGL draw buffer in place.
+  static uint16_t line_buf[PT_LCD_H_RES];
+
   const uint32_t screen_w = lv_display_get_horizontal_resolution(disp);
-  const uint32_t stride = is_full_mode ? screen_w : w;
   const uint16_t *src_base = reinterpret_cast<const uint16_t *>(px_map) +
-                             (is_full_mode ? (static_cast<uint32_t>(y1) * screen_w + static_cast<uint32_t>(x1)) : 0);
+                             static_cast<uint32_t>(y1) * screen_w + static_cast<uint32_t>(x1);
 
-  // Chunked R/B channel swapping block buffer (up to 16 lines at once).
-  static uint16_t block_buf[PT_LCD_H_RES * 16];
-
-  for (uint32_t row_offset = 0; row_offset < h; row_offset += 16) {
-    const uint32_t chunk_h = (h - row_offset < 16) ? (h - row_offset) : 16;
-    for (uint32_t r = 0; r < chunk_h; ++r) {
-      const uint16_t *src_row = src_base + (row_offset + r) * stride;
-      uint16_t *dst_row = block_buf + r * w;
-      for (uint32_t col = 0; col < w; ++col) {
-        dst_row[col] = pt_rgb565_swap_rb(src_row[col]);
-      }
+  for (uint32_t row = 0; row < h; ++row) {
+    const uint16_t *src_row = src_base + row * screen_w;
+    for (uint32_t col = 0; col < w; ++col) {
+      line_buf[col] = pt_rgb565_swap_rb(src_row[col]);
     }
-    pt_gfx.draw16bitRGBBitmap(x1, y1 + static_cast<int32_t>(row_offset), block_buf, w, chunk_h);
+    pt_gfx.draw16bitRGBBitmap(x1, y1 + static_cast<int32_t>(row), line_buf, w, 1);
   }
 
   lv_disp_flush_ready(disp);
@@ -341,7 +333,6 @@ inline void pt_setup_display(PT_LVGL_render_method_t mode = (PT_LVGL_render_meth
     pt_disp_draw_buf = alloc_buf(bufSize, true);
     if (pt_disp_draw_buf)
     {
-      pt_is_full_render = true;
       disp = lv_display_create(screenWidth, screenHeight);
       lv_display_set_flush_cb(disp, pt_disp_flush);
       lv_display_set_buffers(disp, pt_disp_draw_buf, NULL, bufSize * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_FULL);
@@ -359,7 +350,6 @@ inline void pt_setup_display(PT_LVGL_render_method_t mode = (PT_LVGL_render_meth
     }
     if (pt_disp_draw_buf && pt_disp_draw_buf2)
     {
-      pt_is_full_render = true;
       disp = lv_display_create(screenWidth, screenHeight);
       lv_display_set_flush_cb(disp, pt_disp_flush);
       lv_display_set_buffers(disp, pt_disp_draw_buf, pt_disp_draw_buf2, bufSize * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_FULL);

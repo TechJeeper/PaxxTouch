@@ -88,7 +88,7 @@ void RemoteScreenClient::begin(const char *host, bool useAuth, const char *user,
 
 
 
-    applyHttpEndpoint(80, "/screen/snapshot", "/screen/touch");
+    applyHttpEndpoint(80, "/screen/", "/screen/touch");
 
 
 
@@ -640,8 +640,10 @@ bool RemoteScreenClient::probeAvailable() {
     if (host_[0] == '\0' || !enabled_ || !fetchBuf_) return false;
 
     static const char *kSnapPaths[] = {
-        "/screen/snapshot.jpg",
+        "/screen/",
+        "/screen",
         "/screen/snapshot",
+        "/screen/snapshot.jpg",
     };
 
     int len = 0;
@@ -652,11 +654,12 @@ bool RemoteScreenClient::probeAvailable() {
         }
     }
 
+    const int code = probeHttp_.statusCode() ? probeHttp_.statusCode() : http_.statusCode();
     snprintf(probeError_, sizeof(probeError_),
-             "No image from /screen/snapshot (HTTP %d)\nEnable Remote Screen on U1 and reboot",
-             probeHttp_.statusCode() ? probeHttp_.statusCode() : http_.statusCode());
+             "No image from %s (HTTP %d)\nCheck IP / Remote Screen setting on U1",
+             host_, code);
 
-    applyHttpEndpoint(80, "/screen/snapshot", "/screen/touch");
+    applyHttpEndpoint(80, "/screen/", "/screen/touch");
 
     return false;
 

@@ -1,5 +1,10 @@
 # PaxxTouch Feature Status
 
+## v0.2.5 — Restored Working Display Pipeline & /screen/ Endpoint
+
+- Restore working v0.1.9 display flush pipeline and single full framebuffer mode (`PT_LVGL_RENDER_FULL_1`)
+- Set primary U1 remote screen snapshot endpoint to `/screen/`
+
 ## v0.2.4 — Double-Buffered Rendering & Solid Hardware Init
 
 - Enable double-buffered full framebuffers in PSRAM (`PT_LVGL_RENDER_FULL_2`), eliminating atomic redraw collisions, color flipping, and partial invalidation tearing

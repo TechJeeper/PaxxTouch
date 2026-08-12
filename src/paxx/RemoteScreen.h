@@ -152,7 +152,7 @@ private:
 
 
 
-    char snapshotPath_[64] = "/screen/snapshot";
+    char snapshotPath_[64] = "/screen/";
 
     char touchPathPrefix_[48] = "/screen/touch";
 
