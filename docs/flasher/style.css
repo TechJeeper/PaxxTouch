@@ -216,7 +216,7 @@ ol.steps li { margin-bottom: 8px; }
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -315,7 +315,7 @@ footer {
 
 footer a { color: var(--primary); }
 
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .feature-grid {
     grid-template-columns: 1fr;
   }
