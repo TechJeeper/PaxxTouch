@@ -1,5 +1,10 @@
 # PaxxTouch Feature Status
 
+## v0.2.4 — Double-Buffered Rendering & Solid Hardware Init
+
+- Enable double-buffered full framebuffers in PSRAM (`PT_LVGL_RENDER_FULL_2`), eliminating atomic redraw collisions, color flipping, and partial invalidation tearing
+- Restore factory hardware ST7701S panel clock & sync parameters (`pclk_active_neg = 1`, 14.8 MHz PCLK), eliminating white screen on boot
+
 ## v0.2.2 — Display Jitter & Color Phase Fix
 
 - Align PCLK active edge sampling to rising edge (`pclk_active_neg = 0`), eliminating RGB setup/hold timing violations that caused blue buttons to turn green and screen jitter while idle
