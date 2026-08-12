@@ -2,7 +2,9 @@
 #include "ui/Theme.h"
 #include "ui/Notify.h"
 #include "ui/Keyboard.h"
+#if !PAXX_REMOTE_ONLY
 #include "ui/ConsoleLog.h"
+#endif
 #include "paxx/BuildConfig.h"
 #include "paxx/ImageDecoder.h"
 #include "pt/pt_board.h"
@@ -48,6 +50,7 @@ lv_color_t hexToLvColor(const char *hex) {
     return lv_color_hex(rgb);
 }
 
+#if !PAXX_REMOTE_ONLY
 uint32_t colorDistance(const char *a, const char *b) {
     const uint32_t ca = parseHexColor(a);
     const uint32_t cb = parseHexColor(b);
@@ -80,7 +83,9 @@ const char *connectionLabel(ConnectionState s) {
         default: return "Offline";
     }
 }
+#endif // !PAXX_REMOTE_ONLY
 
+#if !PAXX_REMOTE_ONLY
 const char *printStateLabel(PrintState s) {
     switch (s) {
         case PrintState::Printing: return "Printing";
@@ -114,6 +119,7 @@ lv_color_t connectionColor(ConnectionState s) {
 lv_obj_t *makeMenuBtn(PaxxApp *app, lv_obj_t *parent, const char *icon, const char *label, lv_event_cb_t cb) {
     return app->createMenuButton(parent, icon, label, cb);
 }
+#endif // !PAXX_REMOTE_ONLY
 
 }  // namespace
 
@@ -129,10 +135,13 @@ void paxx_back_remote_cb(lv_event_t *e) {
     static_cast<PaxxApp *>(lv_event_get_user_data(e))->showRemote();
 }
 
+#if !PAXX_REMOTE_ONLY
 void paxx_back_files_cb(lv_event_t *e) {
     static_cast<PaxxApp *>(lv_event_get_user_data(e))->showFiles();
 }
+#endif
 
+#if !PAXX_REMOTE_ONLY
 void HomeScreen::create(PaxxApp *app, lv_obj_t *parent) {
     app_ = app;
     const bool dark = app->isDark();
@@ -597,6 +606,8 @@ void FilamentScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lastFilaments_.clear();
 }
 
+#endif // !PAXX_REMOTE_ONLY
+
 void RemoteScreenView::create(PaxxApp *app, lv_obj_t *parent) {
     app_ = app;
     screen_ = lv_obj_create(parent);
@@ -779,13 +790,13 @@ void RemoteScreenView::onEnter() {
         return;
     }
 
-    app_->remoteScreen().setViewActive(true);
-
     if (!WiFi.isConnected()) {
+        // Do not start remote workers/buffers until WiFi is up (SRAM for WPA2).
         setLoadingVisible(true, "Waiting for WiFi…");
         return;
     }
 
+    app_->remoteScreen().setViewActive(true);
     app_->syncServices();
     app_->remoteScreen().resetProbe();
     setLoadingVisible(true, "Connecting to U1 remote screen…");
@@ -808,7 +819,17 @@ void RemoteScreenView::releaseFrame() {
 
 void RemoteScreenView::onTick() {
     if (!app_->config().remoteScreenEnabled) return;
-    if (!WiFi.isConnected()) return;
+    if (!WiFi.isConnected()) {
+        setLoadingVisible(true, "Waiting for WiFi…");
+        return;
+    }
+
+    // Activate workers the first time WiFi is ready while this screen is shown.
+    if (app_->remoteScreen().probeState() == RemoteProbeState::Idle &&
+        !app_->remoteScreen().isViewActive()) {
+        onEnter();
+        return;
+    }
 
     if (touchSpinner_ && touchSpinnerHideMs_ != 0 && millis() > touchSpinnerHideMs_) {
         hideTouchSpinner();
@@ -912,6 +933,7 @@ void RemoteScreenView::onTick() {
     }
 }
 
+#if !PAXX_REMOTE_ONLY
 void TimelapseScreen::create(PaxxApp *app, lv_obj_t *parent) {
     app_ = app;
     screen_ = lv_obj_create(parent);
@@ -1438,6 +1460,8 @@ void TerminalScreen::onTick() {
     lv_textarea_set_cursor_pos(logTa_, LV_TEXTAREA_CURSOR_LAST);
 }
 
+#endif // !PAXX_REMOTE_ONLY
+
 void SettingsScreen::setHint(const char *text) {
     if (hintLbl_) lv_label_set_text(hintLbl_, text ? text : "");
 }
@@ -1448,7 +1472,11 @@ void SettingsScreen::create(PaxxApp *app, lv_obj_t *parent) {
     lv_obj_set_size(screen_, LV_PCT(100), LV_PCT(100));
     lv_obj_set_style_bg_opa(screen_, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(screen_, 0, LV_PART_MAIN);
+#if PAXX_REMOTE_ONLY
+    paxx_create_nav_bar(screen_, "About", paxx_back_home_cb, app, app->isDark());
+#else
     paxx_create_nav_bar(screen_, "Settings", paxx_back_home_cb, app, app->isDark());
+#endif
 
     hintLbl_ = lv_label_create(screen_);
     lv_obj_align(hintLbl_, LV_ALIGN_TOP_MID, 0, 52);
@@ -1465,26 +1493,12 @@ void SettingsScreen::create(PaxxApp *app, lv_obj_t *parent) {
     };
 
 #if PAXX_REMOTE_ONLY
-    add(LV_SYMBOL_WIFI, "WiFi Setup", [](lv_event_t *e) { static_cast<PaxxApp *>(lv_event_get_user_data(e))->showWifi(); });
-    add(LV_SYMBOL_WIFI, "Printer Connection", [](lv_event_t *e) { static_cast<PaxxApp *>(lv_event_get_user_data(e))->showSetup(); });
-    add(LV_SYMBOL_IMAGE, "Remote Screen URL", [](lv_event_t *e) {
-        auto *a = static_cast<PaxxApp *>(lv_event_get_user_data(e));
-        const PrinterProfile &p = activeProfile(a->config());
-        char buf[96];
-        paxxFormatScreenUrl(p.host, buf, sizeof(buf));
-        a->settings().setHint(buf);
-    });
-    add(LV_SYMBOL_TINT, "Toggle Dark Theme", [](lv_event_t *e) {
-        auto *a = static_cast<PaxxApp *>(lv_event_get_user_data(e));
-        a->config().darkTheme = !a->config().darkTheme;
-        a->saveConfig();
-        PaxxTheme::apply(a->config().darkTheme);
-        a->settings().setHint("Theme updated — reopen screens to refresh");
-    });
+    // About only — WiFi / Printer live in the gear menu.
     add(LV_SYMBOL_LIST, "About", [](lv_event_t *e) {
         auto *a = static_cast<PaxxApp *>(lv_event_get_user_data(e));
-        char buf[128];
-        snprintf(buf, sizeof(buf), "PaxxTouch Remote v" PAXXTOUCH_VERSION " — U1 mirror at http://<ip>/screen/");
+        char buf[160];
+        snprintf(buf, sizeof(buf),
+                 "PaxxTouch Remote v" PAXXTOUCH_VERSION "\nU1 mirror: http://<ip>/screen/");
         a->settings().setHint(buf);
     });
 

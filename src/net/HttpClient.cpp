@@ -1,5 +1,6 @@
 #include "net/HttpClient.h"
 
+#include <WiFi.h>
 #include <WiFiClient.h>
 #include <base64.h>
 
@@ -212,6 +213,9 @@ SnapshotFetchStatus HttpClient::fetchSnapshot(const char *path, uint8_t *buffer,
         client.stop();
         client.setTimeout(timeoutMs);
         if (!client.connect(host_, port_, static_cast<uint16_t>(min(timeoutMs, 2000)))) {
+            Serial.printf("[Remote] TCP connect failed %s:%u wifi=%d ip=%s\n",
+                          host_, port_, static_cast<int>(WiFi.status()),
+                          WiFi.localIP().toString().c_str());
             return SnapshotFetchStatus::Error;
         }
     } else {

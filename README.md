@@ -1,4 +1,4 @@
-# PaxxTouch v0.2.7
+# PaxxTouch v0.2.9
 
 Custom firmware for **BIGTREETECH K-Touch** and **PandaTouch** that mirrors the **Snapmaker U1** touchscreen over Wi‑Fi.
 
@@ -41,13 +41,13 @@ See [docs/flasher/README.md](docs/flasher/README.md) for self-hosting on GitHub 
 
 ```bash
 cd PaxxTouch
-pio run -e paxxtouch-remote -t upload --upload-port COM3
+pio run -e paxxtouch-remote-arduino-3x -t upload --upload-port COM3
 ```
 
 Package bins for a GitHub Release:
 
 ```powershell
-.\scripts\package-firmware.ps1 -Version "0.2.7"
+.\scripts\package-firmware.ps1 -Version "0.2.9"
 ```
 
 Upload the files from `dist/firmware/` as release assets (see flasher docs).
@@ -60,6 +60,9 @@ The original multi-screen Moonraker client is still available as a separate buil
 pio run -e paxxtouch -t upload --upload-port COM3
 ```
 
+```powershell
+.\scripts\package-firmware.ps1 -Version "0.2.9" -Env paxxtouch
+```
 This is **not** what the web flasher ships by default.
 
 ## First run

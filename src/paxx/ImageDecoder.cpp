@@ -265,8 +265,9 @@ enum class DecodeKind { Png, PngRgb565, Jpeg, PngRgb565Into, JpegInto };
 
 TaskHandle_t gDecodeTask = nullptr;
 SemaphoreHandle_t gDecodeDone = nullptr;
-static StackType_t gDecodeStack[16384];
+static StackType_t *gDecodeStack = nullptr;
 static StaticTask_t gDecodeTaskStorage;
+static constexpr uint32_t kDecodeStackWords = 12288;
 DecodeKind gJobKind = DecodeKind::Png;
 const uint8_t *gJobData = nullptr;
 size_t gJobLen = 0;
@@ -312,11 +313,26 @@ void decodeLoop(void *) {
 bool ensureDecodeWorker() {
     if (gDecodeTask) return true;
 
-    constexpr uint32_t kStackWords = sizeof(gDecodeStack) / sizeof(gDecodeStack[0]);
+    uint32_t stackWords = kDecodeStackWords;
+    if (!gDecodeStack) {
+        // Keep this stack out of internal DRAM — a static 64KB BSS stack starves WiFi WPA2 (esp-sha).
+        gDecodeStack = static_cast<StackType_t *>(
+            heap_caps_malloc(stackWords * sizeof(StackType_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+        if (!gDecodeStack) {
+            stackWords = 8192;
+            gDecodeStack = static_cast<StackType_t *>(
+                heap_caps_malloc(stackWords * sizeof(StackType_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+        }
+        if (!gDecodeStack) {
+            Serial.println("[Image] decode stack alloc failed");
+            return false;
+        }
+    }
+
     gDecodeDone = xSemaphoreCreateBinary();
     if (!gDecodeDone) return false;
 
-    gDecodeTask = xTaskCreateStaticPinnedToCore(decodeLoop, "imgDec", kStackWords, nullptr, 1, gDecodeStack,
+    gDecodeTask = xTaskCreateStaticPinnedToCore(decodeLoop, "imgDec", stackWords, nullptr, 1, gDecodeStack,
                                                 &gDecodeTaskStorage, 1);
     if (!gDecodeTask) {
         Serial.printf("[Image] decode worker create failed (free=%u)\n", static_cast<unsigned>(ESP.getFreeHeap()));
@@ -325,7 +341,9 @@ bool ensureDecodeWorker() {
         return false;
     }
 
-    Serial.printf("[Image] decode worker ready (stack=%u words)\n", kStackWords);
+    Serial.printf("[Image] decode worker ready (stack=%u words, internal_free=%u)\n",
+                  stackWords,
+                  static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)));
     return true;
 }
 

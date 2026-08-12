@@ -202,7 +202,6 @@ void RemoteScreenClient::ensureWorkers() {
         }
     }
     if (!decodeTask_) {
-        ImageDecoder::initWorker();
         if (xTaskCreatePinnedToCore(decodeWorker, "remoteDec", 6144, this, 6, &decodeTask_, 1) != pdPASS) {
             Serial.println("[Remote] decode task create failed");
             decodeTask_ = nullptr;

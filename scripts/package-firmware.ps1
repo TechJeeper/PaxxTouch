@@ -1,10 +1,10 @@
 # Package PaxxTouch build artifacts for GitHub Releases + web flasher.
-# Usage: .\scripts\package-firmware.ps1 [-Version "0.2.7"] [-Env "paxxtouch-remote"]
+# Usage: .\scripts\package-firmware.ps1 [-Version "0.2.9"] [-Env "paxxtouch-remote-arduino-3x"]
 
 param(
-    [string]$Version = "0.2.7",
-    [ValidateSet("paxxtouch-remote", "paxxtouch")]
-    [string]$Env = "paxxtouch-remote"
+    [string]$Version = "0.2.9",
+    [ValidateSet("paxxtouch-remote-arduino-3x", "paxxtouch-remote", "paxxtouch")]
+    [string]$Env = "paxxtouch-remote-arduino-3x"
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,6 +15,7 @@ $OutDir = Join-Path $Root "dist\firmware"
 Write-Host "Building firmware ($Env)..."
 Push-Location $Root
 python -m platformio run -e $Env
+if ($LASTEXITCODE -ne 0) { throw "platformio build failed ($LASTEXITCODE)" }
 Pop-Location
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
@@ -32,6 +33,7 @@ Write-Host "Copied firmware to $PagesFirmware (web flasher same-origin hosting)"
 $BootApp0 = Get-ChildItem "$env:USERPROFILE\.platformio\packages" -Recurse -Filter "boot_app0.bin" -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($BootApp0) {
     Copy-Item $BootApp0.FullName (Join-Path $OutDir "paxxtouch-boot_app0.bin") -Force
+    Copy-Item $BootApp0.FullName (Join-Path $PagesFirmware "paxxtouch-boot_app0.bin") -Force
     Write-Host "Included boot_app0.bin from $($BootApp0.FullName)"
 } else {
     Write-Warning "boot_app0.bin not found - web flasher marks it optional; OTA may not work without it."

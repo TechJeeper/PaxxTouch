@@ -1,5 +1,6 @@
 #include "net/WifiService.h"
 
+#include <esp_heap_caps.h>
 #include <lvgl.h>
 
 bool WifiService::startConnect(const char *ssid, const char *password, int timeoutSec) {
@@ -29,7 +30,9 @@ void WifiService::finishConnect(bool ok, const char *message) {
     if (ok) {
         Serial.printf("[WiFi] connected ip=%s\n", WiFi.localIP().toString().c_str());
     } else {
-        Serial.println("[WiFi] connect failed");
+        Serial.printf("[WiFi] connect failed status=%d internal_free=%u\n",
+                      static_cast<int>(WiFi.status()),
+                      static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)));
     }
     if (statusCb_) statusCb_(ok, message);
 }

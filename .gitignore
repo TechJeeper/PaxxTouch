@@ -6,3 +6,9 @@ dist/
 .vscode/ipch
 refs/
 boot.bmp
+boot.png
+boot.jpg
+boot.jpeg
+boot_preview.jpg
+
+.cursor-serial/

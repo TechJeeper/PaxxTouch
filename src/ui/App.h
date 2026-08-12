@@ -2,17 +2,21 @@
 
 #include <lvgl.h>
 #include <vector>
-#include "moonraker/MoonrakerClient.h"
+#include "paxx/BuildConfig.h"
 #include "moonraker/MoonrakerRest.h"
 #include "paxx/RemoteScreen.h"
-#include "paxx/CameraService.h"
-#include "paxx/ThumbnailLoader.h"
 #include "storage/Preferences.h"
 #include "net/WifiService.h"
+#if !PAXX_REMOTE_ONLY
+#include "moonraker/MoonrakerClient.h"
+#include "paxx/CameraService.h"
+#include "paxx/ThumbnailLoader.h"
 #include "net/OtaService.h"
+#endif
 
 class PaxxApp;
 
+#if !PAXX_REMOTE_ONLY
 class HomeScreen {
 public:
     void create(PaxxApp *app, lv_obj_t *parent);
@@ -95,6 +99,8 @@ private:
     std::vector<FilamentSlot> lastFilaments_;
 };
 
+#endif // !PAXX_REMOTE_ONLY
+
 class RemoteScreenView {
 public:
     void create(PaxxApp *app, lv_obj_t *parent);
@@ -136,6 +142,7 @@ private:
     int failCount_ = 0;
 };
 
+#if !PAXX_REMOTE_ONLY
 class TimelapseScreen {
 public:
     void create(PaxxApp *app, lv_obj_t *parent);
@@ -254,6 +261,8 @@ private:
     int lastFlow_ = -1;
 };
 
+#endif // !PAXX_REMOTE_ONLY
+
 class SettingsScreen {
 public:
     void create(PaxxApp *app, lv_obj_t *parent);
@@ -327,12 +336,14 @@ public:
     void begin();
     void loop();
 
-    MoonrakerClient &moonraker() { return moonraker_; }
     MoonrakerRest &moonrakerRest() { return moonrakerRest_; }
     RemoteScreenClient &remoteScreen() { return remoteScreen_; }
+    WifiService &wifi() { return wifi_; }
+#if !PAXX_REMOTE_ONLY
+    MoonrakerClient &moonraker() { return moonraker_; }
     CameraService &camera() { return camera_; }
     ThumbnailLoader &thumbnails() { return thumbnails_; }
-    WifiService &wifi() { return wifi_; }
+#endif
     AppConfig &config() { return config_; }
     bool isDark() const { return config_.darkTheme; }
 
@@ -343,35 +354,38 @@ public:
     void ensureMoonrakerRest();
     bool sendGcode(const char *script);
 
+    void showRemote();
+    void showSettings();
+    void showSetup();
+    void showWifi();
+#if !PAXX_REMOTE_ONLY
     void showHome();
     void showPrint();
     void showFilament();
-    void showRemote();
     void showTimelapse();
     void showCamera();
     void showFiles();
     void showPrintPrepare(const char *gcodePath);
     void showControls();
     void showTerminal();
-    void showSettings();
-    void showSetup();
-    void showWifi();
-
-    void showGlobalLoading(bool visible, const char *text = nullptr);
-
     void onStatusUpdate(const PrinterStatus &status);
     void refreshActiveScreen(const PrinterStatus &status);
+#endif
+
+    void showGlobalLoading(bool visible, const char *text = nullptr);
     lv_obj_t *createMenuButton(lv_obj_t *parent, const char *icon, const char *label, lv_event_cb_t cb);
 
-    HomeScreen &home() { return home_; }
     SettingsScreen &settings() { return settings_; }
     SetupScreen &setup() { return setup_; }
     WifiScreen &wifiScreen() { return wifiScreen_; }
+#if !PAXX_REMOTE_ONLY
+    HomeScreen &home() { return home_; }
     FilamentScreen &filament() { return filament_; }
     TerminalScreen &terminal() { return terminal_; }
     TimelapseScreen &timelapse() { return timelapse_; }
     FilesScreen &files() { return files_; }
     PrintPrepareScreen &printPrepare() { return printPrepare_; }
+#endif
 
 private:
     void buildShell();
@@ -381,13 +395,15 @@ private:
     void showScreen(lv_obj_t *screen, const char *tickKind = nullptr);
 
     AppConfig config_{};
-    MoonrakerClient moonraker_;
     MoonrakerRest moonrakerRest_;
     RemoteScreenClient remoteScreen_;
+    WifiService wifi_;
+#if !PAXX_REMOTE_ONLY
+    MoonrakerClient moonraker_;
     CameraService camera_;
     ThumbnailLoader thumbnails_;
-    WifiService wifi_;
     OtaService ota_;
+#endif
 
     lv_obj_t *shell_ = nullptr;
     lv_obj_t *content_ = nullptr;
@@ -402,20 +418,24 @@ private:
     const char *activeTickKind_ = nullptr;
     unsigned long wifiLostAtMs_ = 0;
 
+    RemoteScreenView remote_;
+    SettingsScreen settings_;
+    SetupScreen setup_;
+    WifiScreen wifiScreen_;
+#if !PAXX_REMOTE_ONLY
     HomeScreen home_;
     PrintScreen print_;
     FilamentScreen filament_;
-    RemoteScreenView remote_;
     TimelapseScreen timelapse_;
     CameraScreen cameraScreen_;
     FilesScreen files_;
     PrintPrepareScreen printPrepare_;
     ControlsScreen controls_;
     TerminalScreen terminal_;
-    SettingsScreen settings_;
-    SetupScreen setup_;
-    WifiScreen wifiScreen_;
+#endif
 };
 
 void paxx_back_home_cb(lv_event_t *e);
+#if !PAXX_REMOTE_ONLY
 void paxx_back_files_cb(lv_event_t *e);
+#endif

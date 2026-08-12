@@ -1,5 +1,13 @@
 # PaxxTouch Feature Status
 
+## v0.2.9 — Minimal Remote UI + Display/WiFi Stability
+
+- Remote-only binary keeps **WiFi**, **Printer config**, **About**, and **/screen/** mirror only — full Moonraker UI (home/print/camera/files/…) is compiled out
+- Exclude `MoonrakerClient`, `CameraService`, `ThumbnailLoader`, `OtaService` from remote link
+- Defer remote workers/buffers until WiFi is connected; move image-decode stack to PSRAM
+- Arduino 3.x: **20-line** SRAM bounce + LVGL partial buffers in **PSRAM** (fixes horizontal shift; keeps internal DRAM for bounce ISR/WiFi); factory **14.8 MHz** PCLK (12 MHz white screen)
+- Boot splash: size-capped JPEG in flash (`scripts/convert_boot_bmp.py`, ≤48 KB) drawn via TJpg MCU tiles — no full-frame RGB565 RAM
+
 ## v0.2.7 — WiFi UI Tearing Fix (Display Flush + Double Buffer)
 
 - Restore 16-line chunked display flushes and render-mode stride handling (fixes horizontal banding during keyboard typing and WiFi setup)
@@ -7,7 +15,7 @@
 
 ## v0.2.6 — Periodic Horizontal Shift Fix (SRAM Bounce Buffer)
 
-- Pass 20-line SRAM GDMA bounce buffer parameters (`bounce_buffer_size_px`) to `Arduino_ESP32RGBPanel` in the Arduino ESP32 core 2.x branch, insulating the LCD controller from CPU PSRAM writes and eliminating 500ms horizontal shifting
+- Notes the 20-line SRAM GDMA bounce buffer approach; only effective on Arduino ESP32 **3.x** builds (see v0.2.9)
 
 ## v0.2.5 — Restored Working Display Pipeline & /screen/ Endpoint
 
@@ -28,7 +36,7 @@
 
 - ST7701S RGB panel HSYNC / VSYNC timing calibration (eliminates horizontal left/right display shifting under PSRAM & WiFi load)
 - Increased SRAM bounce buffer cushion (20 lines) to prevent LCD DMA FIFO underflow
-- Instant 800x480 boot splash screen generated from `@boot.bmp`
+- Boot splash removed (black screen until UI is ready; regenerate via `scripts/convert_boot_bmp.py` if needed)
 
 ## v0.2.0 — Config UI Glitch Fix & Performance Update
 

@@ -10,6 +10,9 @@ TAMC_GT911 pt_touchpanel(
 
 #if defined(ESP_ARDUINO_VERSION_MAJOR)
 #if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+// Arduino 3.x: bounce_buffer_size_px = PT_LCD_RENDER_BOUNCE_LINES * H_RES.
+// 20-line SRAM bounce stops horizontal shift from PSRAM+WiFi contention.
+// Factory 14.8 MHz PCLK (12 MHz produced a white screen).
 Arduino_ESP32RGBPanel pt_rgbpanel(
     PT_LCD_DE_PIN, PT_LCD_VSYNC_PIN, PT_LCD_HSYNC_PIN, PT_LCD_PCLK_PIN,
     PT_LCD_B3_PIN, PT_LCD_B4_PIN, PT_LCD_B5_PIN, PT_LCD_B6_PIN, PT_LCD_B7_PIN,
@@ -21,6 +24,8 @@ Arduino_ESP32RGBPanel pt_rgbpanel(
     PT_LCD_PCLK_HZ, false,
     0, 0, PT_LCD_RENDER_BOUNCE_LINES * PT_LCD_H_RES);
 #else
+// Arduino 2.x / GFX 1.5.0: constructor has no bounce_buffer_size_px (and IDF 4.x
+// RGB panel driver has no bounce path). Use env paxxtouch-remote-arduino-3x for the fix.
 Arduino_ESP32RGBPanel pt_rgbpanel(
     PT_LCD_DE_PIN, PT_LCD_VSYNC_PIN, PT_LCD_HSYNC_PIN, PT_LCD_PCLK_PIN,
     PT_LCD_B3_PIN, PT_LCD_B4_PIN, PT_LCD_B5_PIN, PT_LCD_B6_PIN, PT_LCD_B7_PIN,
