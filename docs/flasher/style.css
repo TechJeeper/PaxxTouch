@@ -205,12 +205,6 @@ ol.steps {
 
 ol.steps li { margin-bottom: 8px; }
 
-.features-intro {
-  margin: 0 0 16px;
-  color: var(--muted);
-  font-size: 0.95rem;
-}
-
 .feature-grid {
   list-style: none;
   margin: 0;
