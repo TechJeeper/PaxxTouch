@@ -440,6 +440,7 @@ void PaxxApp::buildShell() {
 }
 
 void PaxxApp::showScreen(lv_obj_t *screen, const char *tickKind) {
+    showGlobalLoading(false);
     hideGearMenu();
     PaxxKeyboard::hide();
     if (activeTickKind_) {
